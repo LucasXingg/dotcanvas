@@ -1,13 +1,13 @@
 import uuid
 import importlib
-import pkgutil
 import inspect
-from typing import Callable, Tuple
+import pkgutil
+from typing import Callable
 
 
 from PIL import Image, ImageDraw, ImageFont
 
-import views
+from . import views
 
 
 
@@ -30,7 +30,8 @@ class _BaseCanvas():
                 if view_cls:
                     view_cls.draw(draw, view_config)
             except Exception as e:
-                print(f"Error rendering view {view_config["type"]}: {e}")
+                view_type = view_config.get("type") if isinstance(view_config, dict) else "unknown"
+                print(f"Error rendering view {view_type}: {e}")
         return canvas_img
 
     @staticmethod

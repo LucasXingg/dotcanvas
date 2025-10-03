@@ -1,4 +1,4 @@
-from src import service_config
+from . import service_config
 
 
 class dot_daemon():

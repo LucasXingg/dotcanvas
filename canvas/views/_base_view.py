@@ -10,6 +10,7 @@ class _BaseView(ABC):
         "width": "View Width",
         "height": "View Height",
     }
+    PARAMS = DEFAULT_PARAMS
     
 
     @staticmethod
