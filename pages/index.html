@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Daemon Control</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2em; }
+    button { margin: 0.5em; padding: 0.5em 1em; font-size: 16px; }
+    #status { margin-top: 1em; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>Daemon Controller</h1>
+  <button onclick="startDaemon()">Start</button>
+  <button onclick="stopDaemon()">Stop</button>
+  <div id="status">Status: unknown</div>
+
+  <script>
+    async function updateStatus() {
+      const res = await fetch("/status");
+      const data = await res.json();
+      document.getElementById("status").innerText = "Status: " + (data.running ? "Running" : "Stopped");
+    }
+
+    async function startDaemon() {
+      await fetch("/start", {method: "POST"});
+      updateStatus();
+    }
+
+    async function stopDaemon() {
+      await fetch("/stop", {method: "POST"});
+      updateStatus();
+    }
+
+    // Update status every 2s
+    setInterval(updateStatus, 2000);
+    updateStatus();
+  </script>
+</body>
+</html>

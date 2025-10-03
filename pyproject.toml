@@ -1,0 +1,12 @@
+[project]
+name = "dotcanvas"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.118.0",
+    "uvicorn>=0.37.0",
+    "pyyaml>=6.0",
+    "pillow>=11.3.0",
+]

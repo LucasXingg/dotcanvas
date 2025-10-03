@@ -1,0 +1,182 @@
+# Dotmate 配置文件示例
+# 复制此文件为 config.yaml 并填入你的实际配置
+
+# API 密钥 - 从你的服务提供商获取
+api_key: "dot_app_RdSgYwSerFjmihBkKwvJbXpbivZtJPkqjyEgSqRPrbEjUIUXOiWSOwEoPvNUffRg"
+
+# 设备列表
+devices:
+  # 设备示例 1：办公室设备，包含多种消息类型
+  - name: "办公室设备"
+    device_id: "9C9E6E3B8548"
+    schedules:
+
+      # Test
+      - cron: "*/1 * * * *"
+        type: text
+        params:
+          title: "测试"
+          message: "这是一条测试消息，每分钟发送一次。"
+      # 每5分钟检查代码状态
+      # - cron: "*/5 * * * *"
+      #   type: code_status
+      #   params:
+      #     wakatime_url: "https://wakatime.com"
+      #     wakatime_api_key: "your-wakatime-api-key-here"
+      #     wakatime_user_id: "your-username"
+
+      # 工作日每小时发送工作倒计时（朝九晚六）
+      # - cron: "0 9-18 * * 1-5"
+      #   type: work
+      #   params:
+      #     clock_in: "09:00"
+      #     clock_out: "18:00"
+
+      # 每天中午12点发送午餐提醒
+      # - cron: "0 12 * * *"
+      #   type: text
+      #   params:
+      #     title: "午餐时间"
+      #     message: "该吃午饭了！"
+
+      # 每天下午6点发送下班提醒
+      # - cron: "0 18 * * 1-5"
+      #   type: text
+      #   params:
+      #     title: "下班时间"
+      #     message: "今天辛苦了，记得整理桌面！"
+
+
+
+# devices:
+#   # 设备示例 1：办公室设备，包含多种消息类型
+#   - name: "办公室设备"
+#     device_id: "office-device-001"
+#     schedules:
+#       # 每5分钟检查代码状态
+#       - cron: "*/5 * * * *"
+#         type: code_status
+#         params:
+#           wakatime_url: "https://wakatime.com"
+#           wakatime_api_key: "your-wakatime-api-key-here"
+#           wakatime_user_id: "your-username"
+
+#       # 工作日每小时发送工作倒计时（朝九晚六）
+#       - cron: "0 9-18 * * 1-5"
+#         type: work
+#         params:
+#           clock_in: "09:00"
+#           clock_out: "18:00"
+
+#       # 每天中午12点发送午餐提醒
+#       - cron: "0 12 * * *"
+#         type: text
+#         params:
+#           title: "午餐时间"
+#           message: "该吃午饭了！"
+
+#       # 每天下午6点发送下班提醒
+#       - cron: "0 18 * * 1-5"
+#         type: text
+#         params:
+#           title: "下班时间"
+#           message: "今天辛苦了，记得整理桌面！"
+
+#   # 设备示例 2：家用设备，仅文本消息
+#   - name: "家用设备"
+#     device_id: "home-device-001"
+#     schedules:
+#       # 每天早上8点发送天气提醒
+#       - cron: "0 8 * * *"
+#         type: text
+#         params:
+#           title: "早安"
+#           message: "新的一天开始了，记得查看今日天气！"
+
+#       # 每天晚上10点发送睡眠提醒
+#       - cron: "0 22 * * *"
+#         type: text
+#         params:
+#           title: "睡眠提醒"
+#           message: "该准备休息了，晚安！"
+
+#   # 设备示例 3：开发环境设备，代码状态监控
+#   - name: "开发环境"
+#     device_id: "dev-device-001"
+#     schedules:
+#       # 每2分钟检查代码状态
+#       - cron: "*/2 * * * *"
+#         type: code_status
+#         params:
+#           wakatime_url: "https://waka.ameow.xyz"
+#           wakatime_api_key: "your-wakatime-api-key-here"
+#           wakatime_user_id: "your-username"
+#           dither_type: "NONE"
+#           link: "https://waka.ameow.xyz"
+
+#       # 工作时间每30分钟提醒休息
+#       - cron: "*/30 9-17 * * 1-5"
+#         type: text
+#         params:
+#           title: "休息提醒"
+#           message: "工作30分钟了，该休息一下了！"
+
+# 配置说明：
+#
+# api_key:
+#   - 必填项，从你的服务提供商获取的 API 密钥
+#
+# devices:
+#   - name: 设备的友好名称，用于识别和命令行操作
+#   - device_id: 设备的唯一标识符，通常由服务提供商分配
+#   - schedules: 该设备的定时任务列表
+#
+# schedules:
+#   - cron: Cron 表达式，定义任务执行时间
+#     格式：分 时 日 月 周 (5个字段)
+#     例子：
+#       "*/5 * * * *"     - 每5分钟
+#       "0 9-18 * * 1-5"  - 工作日每小时
+#       "0 12 * * *"      - 每天中午12点
+#       "*/30 9-17 * * 1-5" - 工作日工作时间内每30分钟
+#
+#   - type: 消息类型，支持以下类型：
+#     * text: 文本消息
+#     * work: 工作倒计时
+#     * code_status: 代码状态监控
+#     * image: 图像显示
+#     * title_image: 生成标题图像
+#
+#   - params: 消息参数（可选），根据消息类型不同而不同：
+#
+#     text 类型参数：
+#       - title: 消息标题（可选）
+#       - message: 消息内容（必填）
+#
+#     work 类型参数：
+#       - clock_in: 上班时间，格式 "HH:MM"（可选，默认 "09:00"）
+#       - clock_out: 下班时间，格式 "HH:MM"（可选，默认 "18:00"）
+#
+#     code_status 类型参数：
+#       - wakatime_url: Wakatime 服务器 URL（必填）
+#       - wakatime_api_key: Wakatime API 密钥（必填）
+#       - wakatime_user_id: Wakatime 用户 ID（必填）
+#       - link: 点击链接（可选）
+#       - border: 边框颜色（可选，数字）
+#       - dither_type: 抖动类型（可选，DIFFUSION/ORDERED/NONE）
+#       - dither_kernel: 抖动内核（可选）
+#
+#     image 类型参数：
+#       - image_data: 图像二进制数据（必填）
+#       - link: 点击链接（可选）
+#       - border: 边框颜色（可选）
+#       - dither_type: 抖动类型（可选）
+#       - dither_kernel: 抖动内核（可选）
+#
+#     title_image 类型参数：
+#       - main_title: 主标题（必填）
+#       - sub_title: 副标题（可选）
+#       - link: 点击链接（可选）
+#       - border: 边框颜色（可选）
+#       - dither_type: 抖动类型（可选）
+#       - dither_kernel: 抖动内核（可选）
