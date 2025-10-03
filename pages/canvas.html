@@ -188,6 +188,36 @@
       white-space: pre-wrap;
     }
 
+    .view-params {
+      margin-top: 0.75rem;
+      background: white;
+      padding: 0.75rem;
+      border-radius: 8px;
+      border: 1px solid #e5e7eb;
+    }
+
+    .view-params-title {
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      color: #0f172a;
+    }
+
+    .view-params-list {
+      margin: 0;
+      padding-left: 1.1rem;
+      color: #475569;
+    }
+
+    .view-params-list li {
+      margin-bottom: 0.25rem;
+    }
+
+    .view-params-list strong {
+      font-family: 'Fira Code', 'Courier New', Courier, monospace;
+      font-weight: 600;
+      color: #111827;
+    }
+
     .preview-wrapper {
       text-align: center;
     }
@@ -327,6 +357,7 @@
 
     let canvases = [];
     let availableViews = [];
+    let availableViewMap = new Map();
     let currentCanvas = null;
 
     const storedLanguage = (() => {
@@ -383,6 +414,8 @@
         'view.unnamed': '未命名',
         'view.configError': '错误：{message}',
         'view.configUnavailable': '暂无法预览配置。保存后刷新即可。',
+        'view.paramsTitle': '必填变量',
+        'view.paramsUnavailable': '无法识别此视图的必填变量。',
         'placeholder.canvasName': '输入画布名称',
         'placeholder.canvasId': '例如：canvas1',
         'placeholder.newCanvasName': '输入新的画布名称',
@@ -433,6 +466,8 @@
         'view.unnamed': 'Unnamed',
         'view.configError': 'Error: {message}',
         'view.configUnavailable': 'Preview unavailable. Save and refresh to update.',
+        'view.paramsTitle': 'Required variables',
+        'view.paramsUnavailable': 'Unable to determine required variables.',
         'placeholder.canvasName': 'Enter a canvas name',
         'placeholder.canvasId': 'e.g. canvas1',
         'placeholder.newCanvasName': 'Enter a new canvas name',
@@ -535,6 +570,9 @@
         const res = await fetch('/views');
         const data = await res.json();
         availableViews = data.views || [];
+        availableViewMap = new Map(
+          availableViews.map(view => [view.type, view.params || {}]),
+        );
         newViewTypeSelect.innerHTML = availableViews
           .map(view => `<option value="${view.type}">${view.type}</option>`)
           .join('');
@@ -662,6 +700,7 @@
         textarea.value = view.code;
         textarea.addEventListener('input', event => {
           view.code = event.target.value;
+          renderParams();
         });
 
         const meta = document.createElement('div');
@@ -681,10 +720,72 @@
           meta.style.borderColor = '#e5e7eb';
         }
 
+        const paramsContainer = document.createElement('div');
+        paramsContainer.className = 'view-params';
+        const paramsTitle = document.createElement('div');
+        paramsTitle.className = 'view-params-title';
+        const paramsContent = document.createElement('div');
+        paramsContainer.appendChild(paramsTitle);
+        paramsContainer.appendChild(paramsContent);
+
+        const resolveViewType = () => {
+          const configType = configInfo?.config?.type;
+          const inferredType = inferViewTypeFromCode(view.code);
+          if (inferredType && configType && inferredType === configType) {
+            return inferredType;
+          }
+          if (inferredType) {
+            return inferredType;
+          }
+          if (configType) {
+            return configType;
+          }
+          return null;
+        };
+
+        const renderParams = () => {
+          const viewType = resolveViewType();
+          paramsTitle.textContent = viewType
+            ? `${t('view.paramsTitle')} (${viewType})`
+            : t('view.paramsTitle');
+          paramsContent.innerHTML = '';
+
+          if (!viewType) {
+            paramsContent.textContent = t('view.paramsUnavailable');
+            paramsContent.style.color = '#b91c1c';
+            return;
+          }
+
+          const params = availableViewMap.get(viewType);
+          if (!params || Object.keys(params).length === 0) {
+            paramsContent.textContent = t('view.paramsUnavailable');
+            paramsContent.style.color = '#b91c1c';
+            return;
+          }
+
+          paramsContent.style.color = '#475569';
+          const list = document.createElement('ul');
+          list.className = 'view-params-list';
+          Object.entries(params).forEach(([paramKey, description]) => {
+            const item = document.createElement('li');
+            const keyElem = document.createElement('strong');
+            keyElem.textContent = paramKey;
+            item.appendChild(keyElem);
+            const descElem = document.createElement('span');
+            descElem.textContent = ` — ${description}`;
+            item.appendChild(descElem);
+            list.appendChild(item);
+          });
+          paramsContent.appendChild(list);
+        };
+
+        renderParams();
+
         card.appendChild(header);
         card.appendChild(controls);
         card.appendChild(editorLabel);
         card.appendChild(textarea);
+        card.appendChild(paramsContainer);
         card.appendChild(meta);
         viewsContainer.appendChild(card);
       });
@@ -816,6 +917,14 @@
         default:
           return `return {\n    "type": "${viewType}",\n    "location_x": 0,\n    "location_y": 0,\n    "width": 100,\n    "height": 100,\n}`;
       }
+    }
+
+    function inferViewTypeFromCode(code) {
+      if (typeof code !== 'string') {
+        return null;
+      }
+      const match = code.match(/['"]type['"]\s*:\s*['"]([^'"\s]+)['"]/);
+      return match ? match[1] : null;
     }
 
     function refreshPreview() {
