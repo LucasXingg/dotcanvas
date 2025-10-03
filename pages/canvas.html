@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>Canvas Manager</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #f5f5f5;
+      color: #1f2937;
+    }
+
+    header {
+      background: #111827;
+      color: white;
+      padding: 1.5rem 2rem;
+      font-size: 1.75rem;
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1.5rem;
+    }
+
+    .header-left {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    header nav {
+      display: flex;
+      gap: 1.25rem;
+      font-size: 1rem;
+    }
+
+    header nav a {
+      color: #cbd5f5;
+      text-decoration: none;
+      padding-bottom: 0.25rem;
+      border-bottom: 2px solid transparent;
+      transition: color 0.15s ease, border-color 0.15s ease;
+    }
+
+    header nav a:hover {
+      color: #ffffff;
+    }
+
+    header nav a.active {
+      color: #ffffff;
+      border-bottom-color: #60a5fa;
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 1.5rem;
+      padding: 1.5rem 2rem 3rem 2rem;
+    }
+
+    section {
+      background: white;
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.1);
+    }
+
+    h2 {
+      margin-top: 0;
+      font-size: 1.25rem;
+      color: #0f172a;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 0.35rem;
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: #1f2937;
+    }
+
+    select, input[type="text"], textarea {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 0.5rem 0.75rem;
+      border: 1px solid #cbd5f5;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-family: 'Fira Code', 'Courier New', Courier, monospace;
+      background: #f9fafb;
+      color: #1f2937;
+    }
+
+    textarea {
+      min-height: 160px;
+      line-height: 1.4;
+      resize: vertical;
+      tab-size: 2;
+    }
+
+    button {
+      background: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 0.5rem 1rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.1s ease, box-shadow 0.2s ease;
+      margin-right: 0.5rem;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(37, 99, 235, 0.35);
+    }
+
+    button.secondary {
+      background: #e5e7eb;
+      color: #1f2937;
+    }
+
+    .language-select {
+      width: auto;
+      min-width: 120px;
+      font-family: inherit;
+      background: #1f2937;
+      color: white;
+      border: 1px solid #374151;
+      border-radius: 6px;
+      padding: 0.35rem 0.5rem;
+    }
+
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: flex-end;
+    }
+
+    .row > div {
+      flex: 1 1 200px;
+    }
+
+    .views-container {
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+      margin-top: 1.25rem;
+    }
+
+    .view-card {
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      padding: 1rem;
+      background: #f8fafc;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    }
+
+    .view-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.75rem;
+    }
+
+    .view-header h3 {
+      margin: 0;
+      font-size: 1.05rem;
+      color: #111827;
+    }
+
+    .view-meta {
+      font-size: 0.85rem;
+      color: #4b5563;
+      margin-top: 0.5rem;
+      background: white;
+      padding: 0.75rem;
+      border-radius: 8px;
+      border: 1px solid #e5e7eb;
+      white-space: pre-wrap;
+    }
+
+    .preview-wrapper {
+      text-align: center;
+    }
+
+    .preview-wrapper img {
+      width: 100%;
+      max-width: 320px;
+      border-radius: 12px;
+      border: 1px solid #d1d5db;
+      background: #ffffff;
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+    }
+
+    .status-text {
+      margin-top: 0.5rem;
+      font-size: 0.9rem;
+      color: #475569;
+    }
+
+    .actions {
+      margin-top: 1rem;
+    }
+
+    .view-controls {
+      display: flex;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .view-controls > div {
+      flex: 1 1 200px;
+    }
+
+    @media (max-width: 1024px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+
+      .header-left {
+        align-items: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-left">
+      <span data-i18n="header.title">画布管理器</span>
+      <nav>
+        <a href="canvas.html" class="active" data-i18n="nav.canvas">画布编辑</a>
+        <a href="daemon.html" data-i18n="nav.daemon">守护进程</a>
+      </nav>
+    </div>
+    <select id="language-select" class="language-select">
+      <option value="zh">中文</option>
+      <option value="en">English</option>
+    </select>
+  </header>
+
+  <main>
+    <section>
+      <h2 data-i18n="section.canvasSelection">画布选择</h2>
+      <div class="row">
+        <div>
+          <label for="canvas-select" data-i18n="label.availableCanvases">可用画布</label>
+          <select id="canvas-select"></select>
+        </div>
+        <div>
+          <label for="canvas-name" data-i18n="label.canvasName">画布名称</label>
+          <input type="text" id="canvas-name" placeholder="输入画布名称" data-i18n-placeholder="placeholder.canvasName">
+        </div>
+        <div>
+          <label for="canvas-id" data-i18n="label.canvasId">画布 ID</label>
+          <input type="text" id="canvas-id" placeholder="例如：canvas1" data-i18n-placeholder="placeholder.canvasId">
+        </div>
+      </div>
+      <div class="actions">
+        <button id="save-btn" data-i18n="button.save">保存更改</button>
+        <button id="preview-btn" class="secondary" data-i18n="button.preview">刷新预览</button>
+      </div>
+      <hr style="margin: 1.5rem 0; border: 0; border-top: 1px solid #e5e7eb;">
+      <h2 data-i18n="section.createCanvas">创建新画布</h2>
+      <div class="row">
+        <div>
+          <label for="new-canvas-name" data-i18n="label.newCanvasName">新画布名称</label>
+          <input type="text" id="new-canvas-name" placeholder="输入新的画布名称" data-i18n-placeholder="placeholder.newCanvasName">
+        </div>
+        <div>
+          <button id="create-canvas-btn" data-i18n="button.createCanvas">创建画布</button>
+        </div>
+      </div>
+      <hr style="margin: 1.5rem 0; border: 0; border-top: 1px solid #e5e7eb;">
+      <h2 data-i18n="section.addView">添加视图</h2>
+      <div class="row">
+        <div>
+          <label for="new-view-id" data-i18n="label.newViewId">视图构建函数 ID</label>
+          <input type="text" id="new-view-id" placeholder="例如：hero_square" data-i18n-placeholder="placeholder.newViewId">
+        </div>
+        <div>
+          <label for="new-view-type" data-i18n="label.newViewType">视图类型</label>
+          <select id="new-view-type"></select>
+        </div>
+        <div>
+          <button id="add-view-btn" data-i18n="button.addView">添加视图</button>
+        </div>
+      </div>
+      <p class="status-text" id="status-text" data-i18n="status.selectCanvas">请选择一个画布开始编辑。</p>
+    </section>
+
+    <section>
+      <h2 data-i18n="section.livePreview">实时预览</h2>
+      <div class="preview-wrapper">
+        <img id="canvas-preview" alt="画布预览" data-i18n-alt="alt.preview" src="" />
+      </div>
+    </section>
+  </main>
+
+  <main style="padding-top: 0;">
+    <section style="grid-column: 1 / -1;">
+      <h2 data-i18n="section.views">视图</h2>
+      <div id="views-container" class="views-container"></div>
+    </section>
+  </main>
+
+  <script>
+    const canvasSelect = document.getElementById('canvas-select');
+    const canvasNameInput = document.getElementById('canvas-name');
+    const canvasIdInput = document.getElementById('canvas-id');
+    const statusText = document.getElementById('status-text');
+    const viewsContainer = document.getElementById('views-container');
+    const previewImg = document.getElementById('canvas-preview');
+    const newCanvasNameInput = document.getElementById('new-canvas-name');
+    const newViewIdInput = document.getElementById('new-view-id');
+    const newViewTypeSelect = document.getElementById('new-view-type');
+    const languageSelect = document.getElementById('language-select');
+
+    let canvases = [];
+    let availableViews = [];
+    let currentCanvas = null;
+
+    const storedLanguage = (() => {
+      try {
+        return localStorage.getItem('dotcanvas-language');
+      } catch (err) {
+        console.debug('Unable to read language preference', err);
+        return null;
+      }
+    })();
+
+    const translations = {
+      zh: {
+        'header.title': '画布管理器',
+        'nav.canvas': '画布编辑',
+        'nav.daemon': '守护进程控制',
+        'section.canvasSelection': '画布选择',
+        'section.createCanvas': '创建新画布',
+        'section.addView': '添加视图',
+        'section.livePreview': '实时预览',
+        'section.views': '视图',
+        'label.availableCanvases': '可用画布',
+        'label.canvasName': '画布名称',
+        'label.canvasId': '画布 ID',
+        'label.newCanvasName': '新画布名称',
+        'label.newViewId': '视图构建函数 ID',
+        'label.newViewType': '视图类型',
+        'label.viewId': '视图 ID（函数名）',
+        'label.viewBuilderBody': '视图构建函数主体',
+        'button.save': '保存更改',
+        'button.preview': '刷新预览',
+        'button.createCanvas': '创建画布',
+        'button.addView': '添加视图',
+        'button.remove': '移除',
+        'status.selectCanvas': '请选择一个画布开始编辑。',
+        'status.loadViewsFailed': '无法加载可用视图。',
+        'status.noCanvas': '未找到任何画布，请先创建。',
+        'status.loadCanvasListFailed': '获取画布列表失败。',
+        'status.canvasLoaded': '已加载画布「{name}」。',
+        'status.loadCanvasFailed': '加载画布失败。',
+        'status.selectBeforeSave': '保存前请先选择一个画布。',
+        'status.canvasIdEmpty': '画布 ID 不能为空。',
+        'status.saveFailed': '保存画布失败。',
+        'status.saveSuccess': '画布保存成功。',
+        'status.createCanvasMissing': '请输入画布名称后再创建。',
+        'status.createCanvasFailed': '创建画布失败。',
+        'status.canvasCreated': '画布「{name}」已创建，请在列表中选择。',
+        'status.selectBeforeAddView': '添加视图前请先选择一个画布。',
+        'status.addViewMissing': '请输入视图 ID 并选择视图类型。',
+        'status.addViewDuplicate': '已存在同名视图。',
+        'status.addViewSuccess': '已添加视图「{id}」，别忘了保存更改。',
+        'views.empty': '尚未定义任何视图，请使用上方表单添加。',
+        'view.title': '视图：{id}',
+        'view.unnamed': '未命名',
+        'view.configError': '错误：{message}',
+        'view.configUnavailable': '暂无法预览配置。保存后刷新即可。',
+        'placeholder.canvasName': '输入画布名称',
+        'placeholder.canvasId': '例如：canvas1',
+        'placeholder.newCanvasName': '输入新的画布名称',
+        'placeholder.newViewId': '例如：hero_square',
+        'alt.preview': '画布预览',
+      },
+      en: {
+        'header.title': 'Canvas Manager',
+        'nav.canvas': 'Canvas Editor',
+        'nav.daemon': 'Daemon Control',
+        'section.canvasSelection': 'Canvas Selection',
+        'section.createCanvas': 'Create a New Canvas',
+        'section.addView': 'Add View',
+        'section.livePreview': 'Live Preview',
+        'section.views': 'Views',
+        'label.availableCanvases': 'Available canvases',
+        'label.canvasName': 'Canvas name',
+        'label.canvasId': 'Canvas ID',
+        'label.newCanvasName': 'Canvas name',
+        'label.newViewId': 'View builder ID',
+        'label.newViewType': 'View type',
+        'label.viewId': 'View ID (function name)',
+        'label.viewBuilderBody': 'View builder function body',
+        'button.save': 'Save changes',
+        'button.preview': 'Refresh preview',
+        'button.createCanvas': 'Create canvas',
+        'button.addView': 'Add view',
+        'button.remove': 'Remove',
+        'status.selectCanvas': 'Select a canvas to begin editing.',
+        'status.loadViewsFailed': 'Unable to load available views.',
+        'status.noCanvas': 'No canvases found. Create one to get started.',
+        'status.loadCanvasListFailed': 'Failed to load canvases.',
+        'status.canvasLoaded': 'Loaded canvas "{name}".',
+        'status.loadCanvasFailed': 'Failed to load canvas.',
+        'status.selectBeforeSave': 'Select a canvas before saving.',
+        'status.canvasIdEmpty': 'Canvas ID cannot be empty.',
+        'status.saveFailed': 'Failed to save canvas.',
+        'status.saveSuccess': 'Canvas saved successfully.',
+        'status.createCanvasMissing': 'Provide a name to create a canvas.',
+        'status.createCanvasFailed': 'Failed to create canvas.',
+        'status.canvasCreated': 'Canvas "{name}" created. Select it from the list.',
+        'status.selectBeforeAddView': 'Select a canvas before adding views.',
+        'status.addViewMissing': 'Provide both a view ID and a view type.',
+        'status.addViewDuplicate': 'A view with that ID already exists.',
+        'status.addViewSuccess': 'Added view "{id}". Remember to save your changes.',
+        'views.empty': 'No views defined. Use the form above to add a view.',
+        'view.title': 'View: {id}',
+        'view.unnamed': 'Unnamed',
+        'view.configError': 'Error: {message}',
+        'view.configUnavailable': 'Preview unavailable. Save and refresh to update.',
+        'placeholder.canvasName': 'Enter a canvas name',
+        'placeholder.canvasId': 'e.g. canvas1',
+        'placeholder.newCanvasName': 'Enter a new canvas name',
+        'placeholder.newViewId': 'e.g. hero_square',
+        'alt.preview': 'Canvas preview',
+      },
+    };
+
+    let currentLanguage = translations[storedLanguage] ? storedLanguage : 'zh';
+    let lastStatus = { key: 'status.selectCanvas', params: {}, isError: false, custom: null };
+
+    function t(key, params = {}) {
+      const template = translations[currentLanguage]?.[key] ?? translations.zh[key] ?? key;
+      return template.replace(/\{(\w+)\}/g, (_, token) => (params[token] !== undefined ? params[token] : ''));
+    }
+
+    function setStatus(message, isError = false, params = {}) {
+      if (translations.zh[message] || translations.en[message]) {
+        lastStatus = { key: message, params, isError, custom: null };
+        statusText.textContent = t(message, params);
+      } else {
+        lastStatus = { key: null, params: {}, isError, custom: message };
+        statusText.textContent = message;
+      }
+      statusText.style.color = isError ? '#b91c1c' : '#475569';
+      lastStatus.isError = isError;
+    }
+
+    function refreshStatusLanguage() {
+      if (lastStatus.custom !== null) {
+        statusText.textContent = lastStatus.custom;
+      } else {
+        statusText.textContent = t(lastStatus.key, lastStatus.params);
+      }
+      statusText.style.color = lastStatus.isError ? '#b91c1c' : '#475569';
+    }
+
+    function applyTranslations() {
+      document.documentElement.lang = currentLanguage === 'zh' ? 'zh' : 'en';
+      document.title = t('header.title');
+      languageSelect.value = currentLanguage;
+
+      document.querySelectorAll('[data-i18n]').forEach(elem => {
+        const key = elem.dataset.i18n;
+        if (key) {
+          elem.textContent = t(key);
+        }
+      });
+
+      document.querySelectorAll('[data-i18n-placeholder]').forEach(elem => {
+        const key = elem.dataset.i18nPlaceholder;
+        if (key) {
+          elem.placeholder = t(key);
+        }
+      });
+
+      document.querySelectorAll('[data-i18n-alt]').forEach(elem => {
+        const key = elem.dataset.i18nAlt;
+        if (key) {
+          elem.alt = t(key);
+        }
+      });
+
+      refreshStatusLanguage();
+      renderViews();
+    }
+
+    function setLanguage(lang, persist = true) {
+      if (!translations[lang]) {
+        lang = 'zh';
+      }
+      currentLanguage = lang;
+      if (persist) {
+        try {
+          localStorage.setItem('dotcanvas-language', lang);
+        } catch (err) {
+          console.debug('Unable to persist language preference', err);
+        }
+      }
+      applyTranslations();
+    }
+
+    languageSelect.addEventListener('change', event => {
+      setLanguage(event.target.value);
+    });
+
+    document.getElementById('save-btn').addEventListener('click', saveCanvas);
+    document.getElementById('preview-btn').addEventListener('click', refreshPreview);
+    document.getElementById('create-canvas-btn').addEventListener('click', createCanvas);
+    document.getElementById('add-view-btn').addEventListener('click', addViewToCanvas);
+    canvasSelect.addEventListener('change', () => loadCanvas(canvasSelect.value));
+
+    async function init() {
+      await fetchAvailableViews();
+      await fetchCanvases();
+    }
+
+    async function fetchAvailableViews() {
+      try {
+        const res = await fetch('/views');
+        const data = await res.json();
+        availableViews = data.views || [];
+        newViewTypeSelect.innerHTML = availableViews
+          .map(view => `<option value="${view.type}">${view.type}</option>`)
+          .join('');
+      } catch (err) {
+        console.error(err);
+        setStatus('status.loadViewsFailed', true);
+      }
+    }
+
+    async function fetchCanvases() {
+      try {
+        const res = await fetch('/canvases');
+        const data = await res.json();
+        canvases = data.canvases || [];
+        canvasSelect.innerHTML = canvases
+          .map(canvas => `<option value="${canvas.id}">${canvas.name} (${canvas.id})</option>`)
+          .join('');
+
+        if (canvases.length) {
+          const selectedId = currentCanvas?.id || canvases[0].id;
+          canvasSelect.value = selectedId;
+          await loadCanvas(selectedId);
+        } else {
+          currentCanvas = null;
+          canvasNameInput.value = '';
+          canvasIdInput.value = '';
+          viewsContainer.innerHTML = '';
+          previewImg.src = '';
+          setStatus('status.noCanvas');
+        }
+      } catch (err) {
+        console.error(err);
+        setStatus('status.loadCanvasListFailed', true);
+      }
+    }
+
+    async function loadCanvas(canvasId) {
+      if (!canvasId) {
+        return;
+      }
+      try {
+        const res = await fetch(`/canvases/${canvasId}`);
+        if (!res.ok) {
+          const errorBody = await res.json().catch(() => ({}));
+          throw new Error(errorBody.detail || '');
+        }
+        const data = await res.json();
+        currentCanvas = {
+          id: data.id,
+          name: data.name,
+          views: data.views.map(view => ({ ...view })),
+          viewConfigs: data.view_configs || [],
+        };
+        canvasNameInput.value = currentCanvas.name;
+        canvasIdInput.value = currentCanvas.id;
+        renderViews();
+        refreshPreview();
+        setStatus('status.canvasLoaded', false, { name: data.name });
+      } catch (err) {
+        console.error(err);
+        if (err.message) {
+          setStatus(err.message, true);
+        } else {
+          setStatus('status.loadCanvasFailed', true);
+        }
+      }
+    }
+
+    function renderViews() {
+      viewsContainer.innerHTML = '';
+      if (!currentCanvas) {
+        return;
+      }
+      if (!currentCanvas.views.length) {
+        const emptyState = document.createElement('p');
+        emptyState.textContent = t('views.empty');
+        emptyState.style.color = '#6b7280';
+        viewsContainer.appendChild(emptyState);
+        return;
+      }
+
+      currentCanvas.views.forEach(view => {
+        const card = document.createElement('div');
+        card.className = 'view-card';
+
+        const header = document.createElement('div');
+        header.className = 'view-header';
+
+        const title = document.createElement('h3');
+        const updateTitle = () => {
+          const displayId = view.id || t('view.unnamed');
+          title.textContent = t('view.title', { id: displayId });
+        };
+        updateTitle();
+        header.appendChild(title);
+
+        const removeBtn = document.createElement('button');
+        removeBtn.textContent = t('button.remove');
+        removeBtn.className = 'secondary';
+        removeBtn.addEventListener('click', () => removeView(view.id));
+        header.appendChild(removeBtn);
+
+        const controls = document.createElement('div');
+        controls.className = 'view-controls';
+
+        const idWrapper = document.createElement('div');
+        const idLabel = document.createElement('label');
+        idLabel.textContent = t('label.viewId');
+        const idInput = document.createElement('input');
+        idInput.type = 'text';
+        idInput.value = view.id;
+        idInput.addEventListener('input', event => {
+          view.id = event.target.value.trim();
+          updateTitle();
+        });
+        idWrapper.appendChild(idLabel);
+        idWrapper.appendChild(idInput);
+        controls.appendChild(idWrapper);
+
+        const editorLabel = document.createElement('label');
+        editorLabel.textContent = t('label.viewBuilderBody');
+        editorLabel.style.marginTop = '0.75rem';
+
+        const textarea = document.createElement('textarea');
+        textarea.value = view.code;
+        textarea.addEventListener('input', event => {
+          view.code = event.target.value;
+        });
+
+        const meta = document.createElement('div');
+        meta.className = 'view-meta';
+        const configInfo = currentCanvas.viewConfigs?.find(item => item.id === view.id);
+        if (configInfo?.error) {
+          meta.textContent = t('view.configError', { message: configInfo.error });
+          meta.style.color = '#b91c1c';
+          meta.style.borderColor = '#fecaca';
+        } else if (configInfo?.config) {
+          meta.textContent = JSON.stringify(configInfo.config, null, 2);
+          meta.style.color = '#4b5563';
+          meta.style.borderColor = '#e5e7eb';
+        } else {
+          meta.textContent = t('view.configUnavailable');
+          meta.style.color = '#4b5563';
+          meta.style.borderColor = '#e5e7eb';
+        }
+
+        card.appendChild(header);
+        card.appendChild(controls);
+        card.appendChild(editorLabel);
+        card.appendChild(textarea);
+        card.appendChild(meta);
+        viewsContainer.appendChild(card);
+      });
+    }
+
+    function removeView(viewId) {
+      if (!currentCanvas) return;
+      currentCanvas.views = currentCanvas.views.filter(view => view.id !== viewId);
+      renderViews();
+    }
+
+    async function saveCanvas() {
+      if (!currentCanvas) {
+        setStatus('status.selectBeforeSave', true);
+        return;
+      }
+      const payload = {
+        name: canvasNameInput.value,
+        views: currentCanvas.views.map(view => ({
+          id: view.id,
+          code: view.code,
+        })),
+      };
+
+      const newId = canvasIdInput.value.trim();
+      if (!newId) {
+        setStatus('status.canvasIdEmpty', true);
+        return;
+      }
+      if (newId !== currentCanvas.id) {
+        payload.new_id = newId;
+      }
+
+      try {
+        const res = await fetch(`/canvases/${currentCanvas.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const errorBody = await res.json().catch(() => ({}));
+          throw new Error(errorBody.detail || '');
+        }
+        const data = await res.json();
+        currentCanvas = {
+          id: data.id,
+          name: data.name,
+          views: data.views.map(view => ({ ...view })),
+          viewConfigs: data.view_configs || [],
+        };
+        canvasNameInput.value = currentCanvas.name;
+        canvasIdInput.value = currentCanvas.id;
+        renderViews();
+        refreshPreview();
+        await fetchCanvases();
+        canvasSelect.value = currentCanvas.id;
+        setStatus('status.saveSuccess');
+      } catch (err) {
+        console.error(err);
+        if (err.message) {
+          setStatus(err.message, true);
+        } else {
+          setStatus('status.saveFailed', true);
+        }
+      }
+    }
+
+    async function createCanvas() {
+      const name = newCanvasNameInput.value.trim();
+      if (!name) {
+        setStatus('status.createCanvasMissing', true);
+        return;
+      }
+      try {
+        const res = await fetch('/canvases', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name }),
+        });
+        if (!res.ok) {
+          const errorBody = await res.json().catch(() => ({}));
+          throw new Error(errorBody.detail || '');
+        }
+        newCanvasNameInput.value = '';
+        setStatus('status.canvasCreated', false, { name });
+        await fetchCanvases();
+        canvasSelect.value = name;
+        await loadCanvas(name);
+      } catch (err) {
+        console.error(err);
+        if (err.message) {
+          setStatus(err.message, true);
+        } else {
+          setStatus('status.createCanvasFailed', true);
+        }
+      }
+    }
+
+    function addViewToCanvas() {
+      if (!currentCanvas) {
+        setStatus('status.selectBeforeAddView', true);
+        return;
+      }
+      const viewId = newViewIdInput.value.trim();
+      const viewType = newViewTypeSelect.value;
+      if (!viewId || !viewType) {
+        setStatus('status.addViewMissing', true);
+        return;
+      }
+      if (currentCanvas.views.some(view => view.id === viewId)) {
+        setStatus('status.addViewDuplicate', true);
+        return;
+      }
+      const defaultCode = getDefaultViewCode(viewType);
+      currentCanvas.views.push({ id: viewId, code: defaultCode });
+      newViewIdInput.value = '';
+      renderViews();
+      setStatus('status.addViewSuccess', false, { id: viewId });
+    }
+
+    function getDefaultViewCode(viewType) {
+      switch (viewType) {
+        case 'SquareView':
+          return `return {\n    "type": "SquareView",\n    "location_x": 20,\n    "location_y": 20,\n    "width": 80,\n    "height": 80,\n    "fill": "#D1E8FF",\n    "outline": "#1E3A8A",\n}`;
+        case 'CircleView':
+          return `return {\n    "type": "CircleView",\n    "location_x": 40,\n    "location_y": 40,\n    "width": 72,\n    "height": 72,\n    "fill": "#FDE68A",\n    "outline": "#92400E",\n}`;
+        case 'TextView':
+          return `return {\n    "type": "TextView",\n    "location_x": 16,\n    "location_y": 32,\n    "width": 120,\n    "height": 40,\n    "text": "${currentLanguage === 'zh' ? '你好，世界' : 'Hello world'}",\n    "fill": "#111827",\n    "font_size": 18,\n}`;
+        default:
+          return `return {\n    "type": "${viewType}",\n    "location_x": 0,\n    "location_y": 0,\n    "width": 100,\n    "height": 100,\n}`;
+      }
+    }
+
+    function refreshPreview() {
+      if (!currentCanvas) return;
+      previewImg.src = `/canvases/${currentCanvas.id}/preview?ts=${Date.now()}`;
+    }
+
+    setStatus('status.selectCanvas');
+    setLanguage(currentLanguage, false);
+    init();
+  </script>
+</body>
+</html>

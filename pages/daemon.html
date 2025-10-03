@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>Daemon Control</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #f5f5f5;
+      color: #1f2937;
+    }
+
+    header {
+      background: #111827;
+      color: white;
+      padding: 1.5rem 2rem;
+      font-size: 1.75rem;
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1.5rem;
+    }
+
+    .header-left {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    header nav {
+      display: flex;
+      gap: 1.25rem;
+      font-size: 1rem;
+    }
+
+    header nav a {
+      color: #cbd5f5;
+      text-decoration: none;
+      padding-bottom: 0.25rem;
+      border-bottom: 2px solid transparent;
+      transition: color 0.15s ease, border-color 0.15s ease;
+    }
+
+    header nav a:hover {
+      color: #ffffff;
+    }
+
+    header nav a.active {
+      color: #ffffff;
+      border-bottom-color: #60a5fa;
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+      padding: 1.5rem 2rem 3rem 2rem;
+    }
+
+    section {
+      background: white;
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.1);
+    }
+
+    h2 {
+      margin-top: 0;
+      font-size: 1.25rem;
+      color: #0f172a;
+    }
+
+    button {
+      background: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 0.5rem 1rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.1s ease, box-shadow 0.2s ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(37, 99, 235, 0.35);
+    }
+
+    button.secondary {
+      background: #e5e7eb;
+      color: #1f2937;
+    }
+
+    .language-select {
+      width: auto;
+      min-width: 120px;
+      font-family: inherit;
+      background: #1f2937;
+      color: white;
+      border: 1px solid #374151;
+      border-radius: 6px;
+      padding: 0.35rem 0.5rem;
+    }
+
+    .daemon-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      font-size: 0.95rem;
+      color: #475569;
+    }
+
+    .daemon-actions {
+      margin-top: 1rem;
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .daemon-feedback {
+      margin-top: 1rem;
+      font-size: 0.95rem;
+    }
+
+    .daemon-tasks {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      margin-top: 1rem;
+    }
+
+    .daemon-task-card {
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      padding: 0.75rem;
+      background: #f8fafc;
+    }
+
+    .daemon-task-card h3 {
+      margin: 0 0 0.35rem 0;
+      font-size: 1rem;
+      color: #111827;
+    }
+
+    .daemon-task-meta {
+      font-size: 0.85rem;
+      color: #4b5563;
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+    }
+
+    .daemon-task-error {
+      color: #b91c1c;
+      font-weight: 600;
+    }
+
+    @media (max-width: 640px) {
+      header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .daemon-actions {
+        width: 100%;
+      }
+
+      .daemon-actions button {
+        flex: 1 1 120px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-left">
+      <span data-i18n="header.title">画布管理器</span>
+      <nav>
+        <a href="canvas.html" data-i18n="nav.canvas">画布编辑</a>
+        <a href="daemon.html" class="active" data-i18n="nav.daemon">守护进程控制</a>
+      </nav>
+    </div>
+    <select id="language-select" class="language-select">
+      <option value="zh">中文</option>
+      <option value="en">English</option>
+    </select>
+  </header>
+
+  <main>
+    <section>
+      <h2 data-i18n="section.daemonControl">守护进程控制</h2>
+      <div class="daemon-meta">
+        <span id="daemon-status-text" data-i18n="status.daemonLoading">正在加载守护进程状态...</span>
+        <span id="daemon-started-at"></span>
+      </div>
+      <div class="daemon-actions">
+        <button id="daemon-start-btn" data-i18n="button.daemonStart">启动</button>
+        <button id="daemon-stop-btn" class="secondary" data-i18n="button.daemonStop">停止</button>
+        <button id="daemon-restart-btn" class="secondary" data-i18n="button.daemonRestart">重启</button>
+        <button id="daemon-refresh-btn" class="secondary" data-i18n="button.daemonRefresh">刷新状态</button>
+      </div>
+      <div id="daemon-feedback-text" class="daemon-feedback" style="display: none;"></div>
+    </section>
+
+    <section>
+      <h2 data-i18n="section.scheduledTasks">计划任务</h2>
+      <p data-i18n="section.taskHint" style="margin-top: 0; color: #4b5563; font-size: 0.95rem;">
+        任务配置来自服务端配置文件，修改后请重新加载守护进程。
+      </p>
+      <div id="daemon-tasks" class="daemon-tasks"></div>
+    </section>
+  </main>
+
+  <script>
+    const languageSelect = document.getElementById('language-select');
+    const daemonStatusText = document.getElementById('daemon-status-text');
+    const daemonStartedAt = document.getElementById('daemon-started-at');
+    const daemonTasksContainer = document.getElementById('daemon-tasks');
+    const daemonFeedbackText = document.getElementById('daemon-feedback-text');
+    const daemonStartBtn = document.getElementById('daemon-start-btn');
+    const daemonStopBtn = document.getElementById('daemon-stop-btn');
+    const daemonRestartBtn = document.getElementById('daemon-restart-btn');
+    const daemonRefreshBtn = document.getElementById('daemon-refresh-btn');
+
+    const storedLanguage = (() => {
+      try {
+        return localStorage.getItem('dotcanvas-language');
+      } catch (err) {
+        console.debug('Unable to read language preference', err);
+        return null;
+      }
+    })();
+
+    const translations = {
+      zh: {
+        'header.title': '画布管理器',
+        'nav.canvas': '画布编辑',
+        'nav.daemon': '守护进程控制',
+        'section.daemonControl': '守护进程控制',
+        'section.scheduledTasks': '计划任务',
+        'section.taskHint': '任务配置来自服务端配置文件，修改后请重新加载守护进程。',
+        'button.daemonStart': '启动',
+        'button.daemonStop': '停止',
+        'button.daemonRestart': '重启',
+        'button.daemonRefresh': '刷新状态',
+        'status.daemonLoading': '正在加载守护进程状态...',
+        'status.daemonRunning': '守护进程运行中。',
+        'status.daemonStopped': '守护进程已停止。',
+        'status.daemonActionSuccess': '守护进程状态已更新。',
+        'status.daemonActionFailed': '守护进程操作失败：{message}',
+        'daemon.noTasks': '未配置任何计划任务。',
+        'daemon.taskTitle': '{device} · {type}',
+        'daemon.startedAt': '启动时间：{value}',
+        'daemon.nextRun': '下次执行：{value}',
+        'daemon.lastRun': '上次执行：{value}',
+        'daemon.type': '类型：{value}',
+        'daemon.deviceId': '设备 ID：{value}',
+        'daemon.taskId': '任务 ID：{value}',
+        'daemon.notRun': '尚未执行',
+        'daemon.unknownDevice': '未知设备',
+        'daemon.params': '参数：{value}',
+        'daemon.error': '错误：{value}',
+        'alt.preview': '画布预览',
+      },
+      en: {
+        'header.title': 'Canvas Manager',
+        'nav.canvas': 'Canvas Editor',
+        'nav.daemon': 'Daemon Control',
+        'section.daemonControl': 'Daemon Control',
+        'section.scheduledTasks': 'Scheduled Tasks',
+        'section.taskHint': 'Tasks come from the server configuration. Reload the daemon after editing the config file.',
+        'button.daemonStart': 'Start',
+        'button.daemonStop': 'Stop',
+        'button.daemonRestart': 'Restart',
+        'button.daemonRefresh': 'Refresh status',
+        'status.daemonLoading': 'Loading daemon status...',
+        'status.daemonRunning': 'Daemon is running.',
+        'status.daemonStopped': 'Daemon is stopped.',
+        'status.daemonActionSuccess': 'Daemon status refreshed.',
+        'status.daemonActionFailed': 'Daemon action failed: {message}',
+        'daemon.noTasks': 'No scheduled tasks configured.',
+        'daemon.taskTitle': '{device} · {type}',
+        'daemon.startedAt': 'Started: {value}',
+        'daemon.nextRun': 'Next run: {value}',
+        'daemon.lastRun': 'Last run: {value}',
+        'daemon.type': 'Type: {value}',
+        'daemon.deviceId': 'Device ID: {value}',
+        'daemon.taskId': 'Task ID: {value}',
+        'daemon.notRun': 'Not run yet',
+        'daemon.unknownDevice': 'Unknown device',
+        'daemon.params': 'Params: {value}',
+        'daemon.error': 'Error: {value}',
+      },
+    };
+
+    let currentLanguage = translations[storedLanguage] ? storedLanguage : 'zh';
+    let daemonStatusState = { key: 'status.daemonLoading', params: {}, isError: false, custom: null };
+    let daemonStartedAtValue = '';
+    let daemonTasksData = [];
+
+    function t(key, params = {}) {
+      const template = translations[currentLanguage]?.[key] ?? translations.zh[key] ?? key;
+      return template.replace(/\{(\w+)\}/g, (_, token) => (params[token] !== undefined ? params[token] : ''));
+    }
+
+    function setDaemonStatusMessage(message, isError = false, params = {}) {
+      if (translations.zh[message] || translations.en[message]) {
+        daemonStatusState = { key: message, params, isError, custom: null };
+        daemonStatusText.textContent = t(message, params);
+      } else {
+        daemonStatusState = { key: null, params: {}, isError, custom: message };
+        daemonStatusText.textContent = message;
+      }
+      daemonStatusState.isError = isError;
+      daemonStatusText.style.color = isError ? '#b91c1c' : '#475569';
+    }
+
+    function refreshDaemonStatusLanguage() {
+      if (daemonStatusState.custom !== null) {
+        daemonStatusText.textContent = daemonStatusState.custom;
+      } else if (daemonStatusState.key) {
+        daemonStatusText.textContent = t(daemonStatusState.key, daemonStatusState.params);
+      }
+      daemonStatusText.style.color = daemonStatusState.isError ? '#b91c1c' : '#475569';
+    }
+
+    function updateDaemonStartedAt(timestamp) {
+      daemonStartedAtValue = timestamp || '';
+      if (!daemonStartedAtValue) {
+        daemonStartedAt.textContent = '';
+        return;
+      }
+      daemonStartedAt.textContent = t('daemon.startedAt', {
+        value: formatTimestamp(daemonStartedAtValue, '—'),
+      });
+    }
+
+    function refreshDaemonStartedAtLanguage() {
+      if (!daemonStartedAtValue) {
+        daemonStartedAt.textContent = '';
+        return;
+      }
+      daemonStartedAt.textContent = t('daemon.startedAt', {
+        value: formatTimestamp(daemonStartedAtValue, '—'),
+      });
+    }
+
+    function setDaemonFeedback(message, isError = false, params = {}) {
+      if (!message) {
+        daemonFeedbackText.style.display = 'none';
+        daemonFeedbackText.textContent = '';
+        return;
+      }
+      const isKey = translations.zh[message] || translations.en[message];
+      const text = isKey ? t(message, params) : message;
+      daemonFeedbackText.textContent = text;
+      daemonFeedbackText.style.display = 'block';
+      daemonFeedbackText.style.color = isError ? '#b91c1c' : '#166534';
+    }
+
+    function formatTimestamp(value, fallback) {
+      if (!value) {
+        return fallback;
+      }
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) {
+        return value;
+      }
+      const locale = currentLanguage === 'zh' ? 'zh-CN' : 'en-US';
+      return date.toLocaleString(locale, { hour12: false });
+    }
+
+    function renderDaemonStatus(status) {
+      if (!status || typeof status !== 'object') {
+        const detail = currentLanguage === 'zh' ? '未知错误' : 'unknown error';
+        setDaemonStatusMessage('status.daemonActionFailed', true, { message: detail });
+        setDaemonFeedback('status.daemonActionFailed', true, { message: detail });
+        return;
+      }
+
+      if (status.running) {
+        setDaemonStatusMessage('status.daemonRunning');
+      } else {
+        setDaemonStatusMessage('status.daemonStopped');
+      }
+
+      updateDaemonStartedAt(status.started_at || '');
+      daemonTasksData = Array.isArray(status.tasks) ? status.tasks : [];
+      renderDaemonTasks();
+
+      if (status.error) {
+        setDaemonFeedback(status.error, true);
+      } else {
+        setDaemonFeedback('');
+      }
+    }
+
+    function renderDaemonTasks(tasks = daemonTasksData) {
+      daemonTasksContainer.innerHTML = '';
+      if (!tasks || !tasks.length) {
+        const empty = document.createElement('p');
+        empty.textContent = t('daemon.noTasks');
+        empty.style.color = '#6b7280';
+        daemonTasksContainer.appendChild(empty);
+        return;
+      }
+
+      tasks.forEach(task => {
+        const card = document.createElement('div');
+        card.className = 'daemon-task-card';
+
+        const title = document.createElement('h3');
+        const deviceName = task.device_name || t('daemon.unknownDevice');
+        const taskType = task.type || '';
+        title.textContent = t('daemon.taskTitle', { device: deviceName, type: taskType });
+        card.appendChild(title);
+
+        const meta = document.createElement('div');
+        meta.className = 'daemon-task-meta';
+
+        const taskIdLine = document.createElement('div');
+        taskIdLine.textContent = t('daemon.taskId', { value: task.task_id || '-' });
+        meta.appendChild(taskIdLine);
+
+        if (task.device_id) {
+          const deviceLine = document.createElement('div');
+          deviceLine.textContent = t('daemon.deviceId', { value: task.device_id });
+          meta.appendChild(deviceLine);
+        }
+
+        const typeLine = document.createElement('div');
+        typeLine.textContent = t('daemon.type', { value: taskType || '-' });
+        meta.appendChild(typeLine);
+
+        const nextRunLine = document.createElement('div');
+        nextRunLine.textContent = t('daemon.nextRun', {
+          value: formatTimestamp(task.next_run, t('daemon.notRun')),
+        });
+        meta.appendChild(nextRunLine);
+
+        const lastRunLine = document.createElement('div');
+        lastRunLine.textContent = t('daemon.lastRun', {
+          value: formatTimestamp(task.last_run, t('daemon.notRun')),
+        });
+        meta.appendChild(lastRunLine);
+
+        if (task.params && typeof task.params === 'object' && Object.keys(task.params).length) {
+          const paramsLine = document.createElement('div');
+          paramsLine.textContent = t('daemon.params', { value: JSON.stringify(task.params) });
+          meta.appendChild(paramsLine);
+        }
+
+        if (task.error) {
+          const errorLine = document.createElement('div');
+          errorLine.className = 'daemon-task-error';
+          errorLine.textContent = t('daemon.error', { value: task.error });
+          meta.appendChild(errorLine);
+        }
+
+        card.appendChild(meta);
+        daemonTasksContainer.appendChild(card);
+      });
+    }
+
+    async function fetchDaemonStatus() {
+      try {
+        const res = await fetch('/daemon/status');
+        if (!res.ok) {
+          const errorBody = await res.json().catch(() => ({}));
+          throw new Error(errorBody.detail || '');
+        }
+        const data = await res.json();
+        renderDaemonStatus(data);
+      } catch (err) {
+        console.error(err);
+        const message = err instanceof Error && err.message ? err.message : '';
+        const fallback = currentLanguage === 'zh' ? '未知错误' : 'unknown error';
+        const detail = message || fallback;
+        setDaemonStatusMessage('status.daemonActionFailed', true, { message: detail });
+        setDaemonFeedback('status.daemonActionFailed', true, { message: detail });
+      }
+    }
+
+    async function controlDaemon(action) {
+      try {
+        const res = await fetch(`/daemon/${action}`, { method: 'POST' });
+        if (!res.ok) {
+          const errorBody = await res.json().catch(() => ({}));
+          throw new Error(errorBody.detail || '');
+        }
+        const data = await res.json();
+        renderDaemonStatus(data);
+        setDaemonFeedback('status.daemonActionSuccess', false);
+      } catch (err) {
+        console.error(err);
+        const message = err instanceof Error && err.message ? err.message : '';
+        const fallback = currentLanguage === 'zh' ? '未知错误' : 'unknown error';
+        const detail = message || fallback;
+        setDaemonFeedback('status.daemonActionFailed', true, { message: detail });
+      }
+    }
+
+    function applyTranslations() {
+      document.documentElement.lang = currentLanguage === 'zh' ? 'zh' : 'en';
+      document.title = t('nav.daemon');
+      languageSelect.value = currentLanguage;
+
+      document.querySelectorAll('[data-i18n]').forEach(elem => {
+        const key = elem.dataset.i18n;
+        if (key) {
+          elem.textContent = t(key);
+        }
+      });
+
+      refreshDaemonStatusLanguage();
+      refreshDaemonStartedAtLanguage();
+      renderDaemonTasks();
+    }
+
+    function setLanguage(lang, persist = true) {
+      if (!translations[lang]) {
+        lang = 'zh';
+      }
+      currentLanguage = lang;
+      if (persist) {
+        try {
+          localStorage.setItem('dotcanvas-language', lang);
+        } catch (err) {
+          console.debug('Unable to persist language preference', err);
+        }
+      }
+      applyTranslations();
+    }
+
+    languageSelect.addEventListener('change', event => {
+      setLanguage(event.target.value);
+    });
+
+    daemonStartBtn.addEventListener('click', () => controlDaemon('start'));
+    daemonStopBtn.addEventListener('click', () => controlDaemon('stop'));
+    daemonRestartBtn.addEventListener('click', () => controlDaemon('restart'));
+    daemonRefreshBtn.addEventListener('click', () => fetchDaemonStatus());
+
+    setLanguage(currentLanguage, false);
+    fetchDaemonStatus();
+  </script>
+</body>
+</html>
