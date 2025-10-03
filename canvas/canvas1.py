@@ -13,35 +13,60 @@ except Exception:
 from PIL import Image, ImageDraw, ImageFont
 
 
-
-
 class Canvas(_BaseCanvas):
 
-    ID = "Canvas1"
+    ID = "canvas1"
 
     @classmethod
     def render(cls) -> Image.Image:
         return cls._render(CONFIG)
 
     @staticmethod
-    def v1() -> None:
-        config = {
-            "type": "_NewViewTemplate",
-            "location_x": 0,
-            "location_y": 0,
-            "width": 296,
-            "height": 152,
-            "custom_param": "Example Parameter Value"
+    def hero_square() -> dict:
+        return {
+            "type": "SquareView",
+            "location_x": 16,
+            "location_y": 16,
+            "width": 120,
+            "height": 120,
+            "fill": "#BFDBFE",
+            "outline": "#1D4ED8",
         }
-        return config
+
+    @staticmethod
+    def spotlight_circle() -> dict:
+        return {
+            "type": "CircleView",
+            "location_x": 156,
+            "location_y": 24,
+            "width": 96,
+            "height": 96,
+            "fill": "#FDE68A",
+            "outline": "#92400E",
+        }
+
+    @staticmethod
+    def headline_text() -> dict:
+        return {
+            "type": "TextView",
+            "location_x": 24,
+            "location_y": 40,
+            "width": 200,
+            "height": 40,
+            "text": "Canvas 1",
+            "fill": "#111827",
+            "font_size": 24,
+        }
 
 
 CONFIG = {
-        "name": "Canvas1",
-        "views": {
-            "v1": Canvas.v1
-        }  # view_id -> view_builder
-    }
+    "name": "Canvas 1",
+    "views": {
+        "hero_square": Canvas.hero_square,
+        "spotlight_circle": Canvas.spotlight_circle,
+        "headline_text": Canvas.headline_text,
+    }  # view_id -> view_builder
+}
 
 if __name__ == "__main__":
     img = Canvas.render()

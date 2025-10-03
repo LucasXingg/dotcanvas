@@ -1,40 +1,546 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Daemon Control</title>
+  <title>Canvas Manager</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 2em; }
-    button { margin: 0.5em; padding: 0.5em 1em; font-size: 16px; }
-    #status { margin-top: 1em; font-weight: bold; }
+    :root {
+      color-scheme: light dark;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #f5f5f5;
+      color: #1f2937;
+    }
+
+    header {
+      background: #111827;
+      color: white;
+      padding: 1.5rem 2rem;
+      font-size: 1.75rem;
+      font-weight: 600;
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 1.5rem;
+      padding: 1.5rem 2rem 3rem 2rem;
+    }
+
+    section {
+      background: white;
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.1);
+    }
+
+    h2 {
+      margin-top: 0;
+      font-size: 1.25rem;
+      color: #0f172a;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 0.35rem;
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: #1f2937;
+    }
+
+    select, input[type="text"], textarea {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 0.5rem 0.75rem;
+      border: 1px solid #cbd5f5;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-family: 'Fira Code', 'Courier New', Courier, monospace;
+      background: #f9fafb;
+      color: #1f2937;
+    }
+
+    textarea {
+      min-height: 160px;
+      line-height: 1.4;
+      resize: vertical;
+      tab-size: 2;
+    }
+
+    button {
+      background: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 0.5rem 1rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.1s ease, box-shadow 0.2s ease;
+      margin-right: 0.5rem;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(37, 99, 235, 0.35);
+    }
+
+    button.secondary {
+      background: #e5e7eb;
+      color: #1f2937;
+    }
+
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: flex-end;
+    }
+
+    .row > div {
+      flex: 1 1 200px;
+    }
+
+    .views-container {
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+      margin-top: 1.25rem;
+    }
+
+    .view-card {
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      padding: 1rem;
+      background: #f8fafc;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    }
+
+    .view-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.75rem;
+    }
+
+    .view-header h3 {
+      margin: 0;
+      font-size: 1.05rem;
+      color: #111827;
+    }
+
+    .view-meta {
+      font-size: 0.85rem;
+      color: #4b5563;
+      margin-top: 0.5rem;
+      background: white;
+      padding: 0.75rem;
+      border-radius: 8px;
+      border: 1px solid #e5e7eb;
+      white-space: pre-wrap;
+    }
+
+    .preview-wrapper {
+      text-align: center;
+    }
+
+    .preview-wrapper img {
+      width: 100%;
+      max-width: 320px;
+      border-radius: 12px;
+      border: 1px solid #d1d5db;
+      background: #ffffff;
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+    }
+
+    .status-text {
+      margin-top: 0.5rem;
+      font-size: 0.9rem;
+      color: #475569;
+    }
+
+    .actions {
+      margin-top: 1rem;
+    }
+
+    .view-controls {
+      display: flex;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .view-controls > div {
+      flex: 1 1 200px;
+    }
+
+    @media (max-width: 1024px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+    }
   </style>
 </head>
 <body>
-  <h1>Daemon Controller</h1>
-  <button onclick="startDaemon()">Start</button>
-  <button onclick="stopDaemon()">Stop</button>
-  <div id="status">Status: unknown</div>
+  <header>Canvas Manager</header>
+  <main>
+    <section>
+      <h2>Canvas Selection</h2>
+      <div class="row">
+        <div>
+          <label for="canvas-select">Available canvases</label>
+          <select id="canvas-select"></select>
+        </div>
+        <div>
+          <label for="canvas-name">Canvas name</label>
+          <input type="text" id="canvas-name" placeholder="Enter canvas name">
+        </div>
+      </div>
+      <div class="actions">
+        <button id="save-btn">Save changes</button>
+        <button id="preview-btn" class="secondary">Refresh preview</button>
+      </div>
+      <hr style="margin: 1.5rem 0; border: 0; border-top: 1px solid #e5e7eb;">
+      <h2>Create a new canvas</h2>
+      <div class="row">
+        <div>
+          <label for="new-canvas-id">Canvas ID</label>
+          <input type="text" id="new-canvas-id" placeholder="e.g. my_canvas">
+        </div>
+        <div>
+          <label for="new-canvas-name">Canvas name</label>
+          <input type="text" id="new-canvas-name" placeholder="Friendly name">
+        </div>
+        <div>
+          <button id="create-canvas-btn">Create canvas</button>
+        </div>
+      </div>
+      <hr style="margin: 1.5rem 0; border: 0; border-top: 1px solid #e5e7eb;">
+      <h2>Add view</h2>
+      <div class="row">
+        <div>
+          <label for="new-view-id">View builder ID</label>
+          <input type="text" id="new-view-id" placeholder="e.g. hero_square">
+        </div>
+        <div>
+          <label for="new-view-type">View type</label>
+          <select id="new-view-type"></select>
+        </div>
+        <div>
+          <button id="add-view-btn">Add view</button>
+        </div>
+      </div>
+      <p class="status-text" id="status-text">Select a canvas to begin editing.</p>
+    </section>
+
+    <section>
+      <h2>Live Preview</h2>
+      <div class="preview-wrapper">
+        <img id="canvas-preview" alt="Canvas preview" src="" />
+      </div>
+    </section>
+  </main>
+
+  <main style="padding-top: 0;">
+    <section style="grid-column: 1 / -1;">
+      <h2>Views</h2>
+      <div id="views-container" class="views-container"></div>
+    </section>
+  </main>
 
   <script>
-    async function updateStatus() {
-      const res = await fetch("/status");
-      const data = await res.json();
-      document.getElementById("status").innerText = "Status: " + (data.running ? "Running" : "Stopped");
+    const canvasSelect = document.getElementById('canvas-select');
+    const canvasNameInput = document.getElementById('canvas-name');
+    const statusText = document.getElementById('status-text');
+    const viewsContainer = document.getElementById('views-container');
+    const previewImg = document.getElementById('canvas-preview');
+    const newCanvasIdInput = document.getElementById('new-canvas-id');
+    const newCanvasNameInput = document.getElementById('new-canvas-name');
+    const newViewIdInput = document.getElementById('new-view-id');
+    const newViewTypeSelect = document.getElementById('new-view-type');
+
+    let canvases = [];
+    let availableViews = [];
+    let currentCanvas = null;
+
+    document.getElementById('save-btn').addEventListener('click', saveCanvas);
+    document.getElementById('preview-btn').addEventListener('click', refreshPreview);
+    document.getElementById('create-canvas-btn').addEventListener('click', createCanvas);
+    document.getElementById('add-view-btn').addEventListener('click', addViewToCanvas);
+    canvasSelect.addEventListener('change', () => loadCanvas(canvasSelect.value));
+
+    async function init() {
+      await fetchAvailableViews();
+      await fetchCanvases();
     }
 
-    async function startDaemon() {
-      await fetch("/start", {method: "POST"});
-      updateStatus();
+    function setStatus(message, isError = false) {
+      statusText.textContent = message;
+      statusText.style.color = isError ? '#b91c1c' : '#475569';
     }
 
-    async function stopDaemon() {
-      await fetch("/stop", {method: "POST"});
-      updateStatus();
+    async function fetchAvailableViews() {
+      try {
+        const res = await fetch('/views');
+        const data = await res.json();
+        availableViews = data.views || [];
+        newViewTypeSelect.innerHTML = availableViews
+          .map(view => `<option value="${view.type}">${view.type}</option>`)
+          .join('');
+      } catch (err) {
+        console.error(err);
+        setStatus('Unable to load available views.', true);
+      }
     }
 
-    // Update status every 2s
-    setInterval(updateStatus, 2000);
-    updateStatus();
+    async function fetchCanvases() {
+      try {
+        const res = await fetch('/canvases');
+        const data = await res.json();
+        canvases = data.canvases || [];
+        canvasSelect.innerHTML = canvases
+          .map(canvas => `<option value="${canvas.id}">${canvas.name} (${canvas.id})</option>`)
+          .join('');
+
+        if (canvases.length) {
+          const selectedId = currentCanvas?.id || canvases[0].id;
+          canvasSelect.value = selectedId;
+          await loadCanvas(selectedId);
+        } else {
+          currentCanvas = null;
+          canvasNameInput.value = '';
+          viewsContainer.innerHTML = '';
+          previewImg.src = '';
+          setStatus('No canvases found. Create one to get started.');
+        }
+      } catch (err) {
+        console.error(err);
+        setStatus('Failed to load canvases.', true);
+      }
+    }
+
+    async function loadCanvas(canvasId) {
+      if (!canvasId) return;
+      try {
+        const res = await fetch(`/canvases/${canvasId}`);
+        if (!res.ok) {
+          throw new Error('Unable to load canvas');
+        }
+        const data = await res.json();
+        currentCanvas = {
+          id: data.id,
+          name: data.name,
+          views: data.views.map(view => ({ ...view })),
+          viewConfigs: data.view_configs || [],
+        };
+        canvasNameInput.value = currentCanvas.name;
+        renderViews();
+        refreshPreview();
+        setStatus(`Loaded canvas "${data.name}".`);
+      } catch (err) {
+        console.error(err);
+        setStatus('Failed to load canvas.', true);
+      }
+    }
+
+    function renderViews() {
+      viewsContainer.innerHTML = '';
+      if (!currentCanvas || !currentCanvas.views.length) {
+        const emptyState = document.createElement('p');
+        emptyState.textContent = 'No views defined. Use the form above to add a view.';
+        emptyState.style.color = '#6b7280';
+        viewsContainer.appendChild(emptyState);
+        return;
+      }
+
+      currentCanvas.views.forEach(view => {
+        const card = document.createElement('div');
+        card.className = 'view-card';
+
+        const header = document.createElement('div');
+        header.className = 'view-header';
+
+        const title = document.createElement('h3');
+        title.textContent = `View: ${view.id}`;
+        header.appendChild(title);
+
+        const removeBtn = document.createElement('button');
+        removeBtn.textContent = 'Remove';
+        removeBtn.className = 'secondary';
+        removeBtn.addEventListener('click', () => removeView(view.id));
+        header.appendChild(removeBtn);
+
+        const controls = document.createElement('div');
+        controls.className = 'view-controls';
+
+        const idWrapper = document.createElement('div');
+        const idLabel = document.createElement('label');
+        idLabel.textContent = 'View ID (function name)';
+        const idInput = document.createElement('input');
+        idInput.type = 'text';
+        idInput.value = view.id;
+        idInput.addEventListener('input', event => {
+          view.id = event.target.value.trim();
+          title.textContent = `View: ${view.id || '(unnamed)'}`;
+        });
+        idWrapper.appendChild(idLabel);
+        idWrapper.appendChild(idInput);
+        controls.appendChild(idWrapper);
+
+        const editorLabel = document.createElement('label');
+        editorLabel.textContent = 'View builder function body';
+        editorLabel.style.marginTop = '0.75rem';
+
+        const textarea = document.createElement('textarea');
+        textarea.value = view.code;
+        textarea.addEventListener('input', event => {
+          view.code = event.target.value;
+        });
+
+        const meta = document.createElement('div');
+        meta.className = 'view-meta';
+        const configInfo = currentCanvas.viewConfigs?.find(item => item.id === view.id);
+        if (configInfo?.error) {
+          meta.textContent = `Error: ${configInfo.error}`;
+          meta.style.color = '#b91c1c';
+          meta.style.borderColor = '#fecaca';
+        } else if (configInfo?.config) {
+          meta.textContent = JSON.stringify(configInfo.config, null, 2);
+        } else {
+          meta.textContent = 'Configuration preview unavailable. Save to refresh.';
+        }
+
+        card.appendChild(header);
+        card.appendChild(controls);
+        card.appendChild(editorLabel);
+        card.appendChild(textarea);
+        card.appendChild(meta);
+        viewsContainer.appendChild(card);
+      });
+    }
+
+    function removeView(viewId) {
+      if (!currentCanvas) return;
+      currentCanvas.views = currentCanvas.views.filter(view => view.id !== viewId);
+      renderViews();
+    }
+
+    async function saveCanvas() {
+      if (!currentCanvas) {
+        setStatus('Select a canvas before saving.', true);
+        return;
+      }
+      const payload = {
+        name: canvasNameInput.value,
+        views: currentCanvas.views.map(view => ({
+          id: view.id,
+          code: view.code,
+        })),
+      };
+
+      try {
+        const res = await fetch(`/canvases/${currentCanvas.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const errorBody = await res.json();
+          throw new Error(errorBody.detail || 'Failed to save canvas');
+        }
+        const data = await res.json();
+        currentCanvas = {
+          id: data.id,
+          name: data.name,
+          views: data.views.map(view => ({ ...view })),
+          viewConfigs: data.view_configs || [],
+        };
+        canvasNameInput.value = currentCanvas.name;
+        renderViews();
+        refreshPreview();
+        await fetchCanvases();
+        canvasSelect.value = currentCanvas.id;
+        setStatus('Canvas saved successfully.');
+      } catch (err) {
+        console.error(err);
+        setStatus(err.message || 'Failed to save canvas.', true);
+      }
+    }
+
+    async function createCanvas() {
+      const id = newCanvasIdInput.value.trim();
+      const name = newCanvasNameInput.value.trim();
+      if (!id || !name) {
+        setStatus('Provide both an ID and a name to create a canvas.', true);
+        return;
+      }
+      try {
+        const res = await fetch('/canvases', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ canvas_id: id, name }),
+        });
+        if (!res.ok) {
+          const errorBody = await res.json();
+          throw new Error(errorBody.detail || 'Failed to create canvas');
+        }
+        newCanvasIdInput.value = '';
+        newCanvasNameInput.value = '';
+        setStatus(`Canvas "${name}" created. Select it from the list.`);
+        await fetchCanvases();
+        canvasSelect.value = id;
+        await loadCanvas(id);
+      } catch (err) {
+        console.error(err);
+        setStatus(err.message || 'Failed to create canvas.', true);
+      }
+    }
+
+    function addViewToCanvas() {
+      if (!currentCanvas) {
+        setStatus('Select a canvas before adding views.', true);
+        return;
+      }
+      const viewId = newViewIdInput.value.trim();
+      const viewType = newViewTypeSelect.value;
+      if (!viewId || !viewType) {
+        setStatus('Provide both a view ID and a view type.', true);
+        return;
+      }
+      if (currentCanvas.views.some(view => view.id === viewId)) {
+        setStatus('A view with that ID already exists.', true);
+        return;
+      }
+      const defaultCode = getDefaultViewCode(viewType);
+      currentCanvas.views.push({ id: viewId, code: defaultCode });
+      newViewIdInput.value = '';
+      renderViews();
+      setStatus(`Added view "${viewId}". Remember to save your changes.`);
+    }
+
+    function getDefaultViewCode(viewType) {
+      switch (viewType) {
+        case 'SquareView':
+          return `return {\n    "type": "SquareView",\n    "location_x": 20,\n    "location_y": 20,\n    "width": 80,\n    "height": 80,\n    "fill": "#D1E8FF",\n    "outline": "#1E3A8A",\n}`;
+        case 'CircleView':
+          return `return {\n    "type": "CircleView",\n    "location_x": 40,\n    "location_y": 40,\n    "width": 72,\n    "height": 72,\n    "fill": "#FDE68A",\n    "outline": "#92400E",\n}`;
+        case 'TextView':
+          return `return {\n    "type": "TextView",\n    "location_x": 16,\n    "location_y": 32,\n    "width": 120,\n    "height": 40,\n    "text": "Hello world",\n    "fill": "#111827",\n    "font_size": 18,\n}`;
+        default:
+          return `return {\n    "type": "${viewType}",\n    "location_x": 0,\n    "location_y": 0,\n    "width": 100,\n    "height": 100,\n}`;
+      }
+    }
+
+    function refreshPreview() {
+      if (!currentCanvas) return;
+      previewImg.src = `/canvases/${currentCanvas.id}/preview?ts=${Date.now()}`;
+    }
+
+    init();
   </script>
 </body>
 </html>
