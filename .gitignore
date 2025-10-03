@@ -19,3 +19,9 @@ wheels/
 # config files
 configs/*
 !configs/config-example.yaml
+
+# canvas
+canvas/*.py
+!canvas/_base_canvas.py
+!canvas/_canvas_template.py
+!canvas/__init__.py
