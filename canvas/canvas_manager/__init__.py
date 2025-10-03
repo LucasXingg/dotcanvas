@@ -5,6 +5,7 @@ import ast
 import importlib
 import json
 import textwrap
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
@@ -113,17 +114,39 @@ def create_canvas(canvas_id: str, name: str) -> CanvasDefinition:
     return base_definition
 
 
-def save_canvas(canvas_id: str, name: str, views: List[Dict[str, Any]]) -> CanvasDefinition:
+def save_canvas(
+    canvas_id: str,
+    name: str,
+    views: List[Dict[str, Any]],
+    new_canvas_id: str | None = None,
+) -> CanvasDefinition:
     """Persist updates to a canvas module."""
 
     existing = load_canvas(canvas_id)
     existing.name = name
     existing.views = [ViewDefinition(view_id=v["id"], code=v["code"]) for v in views]
 
+    target_canvas_id = new_canvas_id.strip() if new_canvas_id else canvas_id
+    if not target_canvas_id:
+        raise CanvasManagerError("Canvas ID cannot be empty")
+
+    rename_required = target_canvas_id != canvas_id
+    if rename_required:
+        new_path = CANVAS_DIR / f"{target_canvas_id}.py"
+        if new_path.exists():
+            raise CanvasManagerError(f"Canvas '{target_canvas_id}' already exists")
+    else:
+        new_path = _canvas_file(canvas_id)
+
+    existing.canvas_id = target_canvas_id
+    old_path = _canvas_file(canvas_id)
+
     template_source = CANVAS_TEMPLATE.read_text()
     rendered = _render_canvas_source(existing, template_source)
-    path = _canvas_file(canvas_id)
-    path.write_text(rendered)
+    new_path.write_text(rendered)
+    if rename_required:
+        old_path.unlink(missing_ok=True)
+        sys.modules.pop(f"canvas.{canvas_id}", None)
     importlib.invalidate_caches()
     return existing
 

@@ -31,10 +31,11 @@ class ViewPayload(BaseModel):
 class CanvasUpdatePayload(BaseModel):
     name: str
     views: List[ViewPayload]
+    new_id: str | None = None
 
 
 class CanvasCreatePayload(BaseModel):
-    canvas_id: str
+    # canvas_id: str
     name: str
 
 
@@ -62,7 +63,7 @@ def get_canvas(canvas_id: str):
 @app.post("/canvases")
 def create_canvas_endpoint(payload: CanvasCreatePayload):
     try:
-        definition = create_canvas(payload.canvas_id, payload.name)
+        definition = create_canvas(payload.name, payload.name)
     except CanvasManagerError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {
@@ -79,13 +80,14 @@ def update_canvas(canvas_id: str, payload: CanvasUpdatePayload):
             canvas_id,
             payload.name,
             [{"id": view.id, "code": view.code} for view in payload.views],
+            payload.new_id,
         )
     except CanvasNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except CanvasManagerError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    view_configs = load_view_configs(canvas_id)
+    view_configs = load_view_configs(updated.canvas_id)
     return {
         "id": updated.canvas_id,
         "name": updated.name,
@@ -112,4 +114,3 @@ def preview_canvas(canvas_id: str):
 @app.get("/views")
 def get_available_views():
     return {"views": list_available_views()}
-

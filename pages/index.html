@@ -199,6 +199,10 @@
           <label for="canvas-name">Canvas name</label>
           <input type="text" id="canvas-name" placeholder="Enter canvas name">
         </div>
+        <div>
+          <label for="canvas-id">Canvas ID</label>
+          <input type="text" id="canvas-id" placeholder="e.g. canvas1">
+        </div>
       </div>
       <div class="actions">
         <button id="save-btn">Save changes</button>
@@ -207,10 +211,10 @@
       <hr style="margin: 1.5rem 0; border: 0; border-top: 1px solid #e5e7eb;">
       <h2>Create a new canvas</h2>
       <div class="row">
-        <div>
+        <!-- <div>
           <label for="new-canvas-id">Canvas ID</label>
           <input type="text" id="new-canvas-id" placeholder="e.g. my_canvas">
-        </div>
+        </div> -->
         <div>
           <label for="new-canvas-name">Canvas name</label>
           <input type="text" id="new-canvas-name" placeholder="Friendly name">
@@ -255,10 +259,11 @@
   <script>
     const canvasSelect = document.getElementById('canvas-select');
     const canvasNameInput = document.getElementById('canvas-name');
+    const canvasIdInput = document.getElementById('canvas-id');
     const statusText = document.getElementById('status-text');
     const viewsContainer = document.getElementById('views-container');
     const previewImg = document.getElementById('canvas-preview');
-    const newCanvasIdInput = document.getElementById('new-canvas-id');
+    // const newCanvasIdInput = document.getElementById('new-canvas-id');
     const newCanvasNameInput = document.getElementById('new-canvas-name');
     const newViewIdInput = document.getElementById('new-view-id');
     const newViewTypeSelect = document.getElementById('new-view-type');
@@ -313,6 +318,7 @@
         } else {
           currentCanvas = null;
           canvasNameInput.value = '';
+          canvasIdInput.value = '';
           viewsContainer.innerHTML = '';
           previewImg.src = '';
           setStatus('No canvases found. Create one to get started.');
@@ -338,6 +344,7 @@
           viewConfigs: data.view_configs || [],
         };
         canvasNameInput.value = currentCanvas.name;
+        canvasIdInput.value = currentCanvas.id;
         renderViews();
         refreshPreview();
         setStatus(`Loaded canvas "${data.name}".`);
@@ -442,6 +449,15 @@
         })),
       };
 
+      const newId = canvasIdInput.value.trim();
+      if (!newId) {
+        setStatus('Canvas ID cannot be empty.', true);
+        return;
+      }
+      if (newId !== currentCanvas.id) {
+        payload.new_id = newId;
+      }
+
       try {
         const res = await fetch(`/canvases/${currentCanvas.id}`, {
           method: 'PUT',
@@ -460,6 +476,7 @@
           viewConfigs: data.view_configs || [],
         };
         canvasNameInput.value = currentCanvas.name;
+        canvasIdInput.value = currentCanvas.id;
         renderViews();
         refreshPreview();
         await fetchCanvases();
@@ -472,28 +489,28 @@
     }
 
     async function createCanvas() {
-      const id = newCanvasIdInput.value.trim();
+    //   const id = newCanvasIdInput.value.trim();
       const name = newCanvasNameInput.value.trim();
-      if (!id || !name) {
-        setStatus('Provide both an ID and a name to create a canvas.', true);
+      if (!name) {
+        setStatus('Provide a name to create a canvas.', true);
         return;
       }
       try {
         const res = await fetch('/canvases', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ canvas_id: id, name }),
+          body: JSON.stringify({ name: name }),
         });
         if (!res.ok) {
           const errorBody = await res.json();
           throw new Error(errorBody.detail || 'Failed to create canvas');
         }
-        newCanvasIdInput.value = '';
+        // newCanvasIdInput.value = '';
         newCanvasNameInput.value = '';
         setStatus(`Canvas "${name}" created. Select it from the list.`);
         await fetchCanvases();
-        canvasSelect.value = id;
-        await loadCanvas(id);
+        canvasSelect.value = name;
+        await loadCanvas(name);
       } catch (err) {
         console.error(err);
         setStatus(err.message || 'Failed to create canvas.', true);
