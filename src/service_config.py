@@ -16,7 +16,7 @@ class ServercConfig:
         self.load_config()
 
 
-    def load_config(self) -> Dict[str, Any]:
+    def load_config(self) -> None:
         if not self.path.exists():
             msg = f"Config file not found: {self.path}"
             raise FileNotFoundError(msg)
@@ -26,7 +26,6 @@ class ServercConfig:
             msg = "Configuration root must be a mapping"
             raise ValueError(msg)
         self.cfg = data
-        return self.cfg
 
 
     def validate(self) -> bool:
@@ -63,9 +62,13 @@ class ServercConfig:
                         errors.append(
                             f"device[{idx}].schedules[{sidx}].cron is missing"
                         )
-                    if not schedule.get("type"):
+                    if not schedule.get("name"):
                         errors.append(
-                            f"device[{idx}].schedules[{sidx}].type is missing"
+                            f"device[{idx}].schedules[{sidx}].name is missing"
+                        )
+                    if not schedule.get("canvas_id"):
+                        errors.append(
+                            f"device[{idx}].schedules[{sidx}].canvas_id is missing"
                         )
                     if schedule.get("params") is None:
                         errors.append(

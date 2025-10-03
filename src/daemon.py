@@ -1,8 +1,7 @@
-from __future__ import annotations
-
 import logging
 import threading
 from dataclasses import dataclass, field
+from pathlib import Path
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional
 
@@ -23,15 +22,14 @@ TaskHandler = Callable[["ScheduledTask"], None]
 class ScheduledTask:
     """Represents a single cron-based task loaded from the service config."""
 
-    task_id: str
+    task_name: str
     device_name: str
     device_id: str
-    task_type: str
     cron: str
+    canvas_id: str
     params: Dict[str, Any] = field(default_factory=dict)
     next_run: Optional[datetime] = None
     last_run: Optional[datetime] = None
-    error: Optional[str] = None
 
     def compute_next_run(self, reference: Optional[datetime] = None) -> None:
         reference_time = reference or datetime.now()
@@ -51,213 +49,99 @@ class DotDaemonError(RuntimeError):
 class DotDaemon:
     """Background worker that executes configured tasks on a cron schedule."""
 
-    def __init__(self, poll_interval: float = 1.0) -> None:
-        self._poll_interval = poll_interval
-        self._config = ServercConfig()
-        self._handlers: Dict[str, TaskHandler] = {}
-        self._tasks: List[ScheduledTask] = []
-        self._tasks_by_id: Dict[str, ScheduledTask] = {}
-        self._lock = threading.RLock()
-        self._scheduler: Optional[BackgroundScheduler] = None
-        self._running = False
-        self._started_at: Optional[datetime] = None
-        self.reload_tasks()
+    def __init__(self, config_path: str | None = None) -> None:
 
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
-    def register_handler(self, task_type: str, handler: TaskHandler) -> None:
-        """Register a callable to execute tasks of the given type."""
+        if config_path is None:
+            config_path = Path(__file__).resolve().parents[1] / "configs" / "config.yaml"
 
-        with self._lock:
-            self._handlers[task_type] = handler
+        self.is_running = False
 
-    def start(self, *, reload_config: bool = False) -> None:
-        """Start the daemon if it is not already running."""
+        self.config_path = config_path
+        self.load_config()
 
-        with self._lock:
-            if self._running:
-                raise DotDaemonError("Daemon is already running")
-            if reload_config:
-                self.reload_tasks()
-            if not self._tasks:
-                logger.warning("No tasks are configured; daemon will idle")
-            scheduler = BackgroundScheduler()
-            self._scheduler = scheduler
-            self._apply_tasks_to_scheduler_locked(scheduler)
-            self._running = True
-            self._started_at = datetime.now()
+        self.scheduler = BackgroundScheduler()
 
-        try:
-            scheduler.start()
-        except Exception:  # noqa: BLE001 - surface scheduler setup issues
-            with self._lock:
-                self._scheduler = None
-                self._running = False
-                self._started_at = None
-            raise
-
-        logger.info("DotDaemon started")
-
-    def stop(self) -> None:
-        """Stop the daemon if it is running."""
-
-        with self._lock:
-            if not self._running:
-                logger.info("DotDaemon stop requested but daemon is not running")
-                return
-            scheduler = self._scheduler
-            self._scheduler = None
-            self._running = False
-            self._started_at = None
-
-        if scheduler is not None:
-            scheduler.shutdown(wait=True)
-
-        logger.info("DotDaemon stopped")
-
-    def restart(self) -> None:
-        """Restart the daemon, reloading configuration in the process."""
-
-        self.stop()
-        self.reload_tasks()
+        self.load_tasks()
         self.start()
 
-    def reload_tasks(self) -> None:
-        """Reload cron tasks from the configuration file."""
-
-        with self._lock:
-            self._config.load_config()
-            if not self._config.validate():
-                raise DotDaemonError("Configuration validation failed")
-
-            tasks: List[ScheduledTask] = []
-            base_time = datetime.now()
-            for device, schedule_index, schedule in self._config.iter_device_schedules():
-                cron_expression = str(schedule.get("cron", "")).strip()
-                task_type = str(schedule.get("type", "")).strip()
-                params = schedule.get("params") or {}
-                raw_identifier = device.get("device_id") or device.get("name")
-                if raw_identifier:
-                    device_identifier = str(raw_identifier)
-                else:
-                    device_identifier = f"device-{schedule_index}"
-
-                if not cron_expression or not task_type:
-                    task_id = f"{device_identifier}:{schedule_index}"
-                    task = ScheduledTask(
-                        task_id=task_id,
-                        device_name=device.get("name", ""),
-                        device_id=device.get("device_id", ""),
-                        task_type=task_type or "unknown",
-                        cron=cron_expression or "* * * * *",
-                        params=params,
-                    )
-                    task.error = "Missing cron or type"
-                    tasks.append(task)
-                    continue
-
-                task_id = f"{device_identifier}:{schedule_index}"
-                task = ScheduledTask(
-                    task_id=task_id,
-                    device_name=device.get("name", "unknown device"),
-                    device_id=str(device.get("device_id", "")),
-                    task_type=task_type,
-                    cron=cron_expression,
-                    params=params,
-                )
-                task.compute_next_run(base_time)
-                tasks.append(task)
-
-            self._tasks = tasks
-            self._tasks_by_id = {task.task_id: task for task in tasks}
-            scheduler = self._scheduler
-            if scheduler is not None:
-                self._apply_tasks_to_scheduler_locked(scheduler)
-            logger.info("Loaded %s scheduled tasks", len(tasks))
-
-    def status(self) -> Dict[str, Any]:
-        """Return a snapshot of the daemon state suitable for serialization."""
-
-        with self._lock:
-            tasks_status = [
-                {
-                    "task_id": task.task_id,
-                    "device_name": task.device_name,
-                    "device_id": task.device_id,
-                    "type": task.task_type,
-                    "cron": task.cron,
-                    "params": task.params,
-                    "next_run": task.next_run.isoformat() if task.next_run else None,
-                    "last_run": task.last_run.isoformat() if task.last_run else None,
-                    "error": task.error,
-                }
-                for task in self._tasks
-            ]
-            return {
-                "running": self._running,
-                "started_at": self._started_at.isoformat() if self._started_at else None,
-                "task_count": len(self._tasks),
-                "tasks": tasks_status,
-            }
-
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
-    def _apply_tasks_to_scheduler_locked(self, scheduler: BackgroundScheduler) -> None:
-        scheduler.remove_all_jobs()
-        for task in self._tasks:
-            if task.error:
-                continue
+    def load_config(self) -> None:
+        self.config = ServercConfig(self.config_path)
+        if not self.config.validate():
+            raise DotDaemonError("Invalid configuration")
+        
+    def load_tasks(self) -> None:
+        for device, _, schedule in self.config.iter_device_schedules():
             try:
-                trigger = CronTrigger.from_crontab(task.cron)
-            except ValueError as exc:
-                task.error = f"Invalid cron expression: {exc}"
-                task.next_run = None
-                continue
-            job = scheduler.add_job(
-                self._execute_task,
-                trigger=trigger,
-                id=task.task_id,
-                replace_existing=True,
-                args=[task.task_id],
-            )
-            task.next_run = job.next_run_time
+                task = ScheduledTask(
+                    task_name=schedule["name"],
+                    device_name=device["name"],
+                    device_id=device["device_id"],
+                    cron=schedule["cron"],
+                    canvas_id=schedule["canvas_id"],
+                    params=schedule.get("params", {}),
+                )
+                task.compute_next_run()
 
-    def _execute_task(self, task_id: str) -> None:
-        reference = datetime.now()
+                self.scheduler.add_job(
+                    self.canvas_executer,
+                    trigger=CronTrigger.from_crontab(task.cron),
+                    args=[task],
+                    id=f"{device['device_id']}_{task.task_name}",
+                    replace_existing=True,
+                )
+                
+            except Exception as exc:
+                logger.warning(f"Failed to load schedule for device {device.get('name', 'unknown')}: {exc}")
 
-        with self._lock:
-            task = self._tasks_by_id.get(task_id)
-            handler = self._handlers.get(task.task_type) if task is not None else None
-            if task is not None:
-                task.last_run = reference
+    def start(self) -> None:
+        # If scheduler was shut down, create a new one
+        if not self.scheduler or not self.scheduler.running:
+            # If the executor pool is dead, APScheduler will not restart
+            # So we just recreate a fresh scheduler
+            if getattr(self.scheduler, "_stopped", False):  # internal flag after shutdown
+                self.scheduler = BackgroundScheduler()
+                self.load_tasks()
 
-        if task is None:
-            logger.warning("Received execution request for unknown task '%s'", task_id)
-            return
+            self.scheduler.start()
+            self.is_running = True
+            logger.info("Scheduler started")
+        else:
+            logger.info("Scheduler already running")
 
-        try:
-            if handler is not None:
-                handler(task)
-            else:
-                logger.info("No handler registered for task type '%s'; skipping", task.task_type)
-            error: Optional[str] = None
-        except Exception as exc:  # noqa: BLE001 - surface handler issues
-            logger.exception("Task %s failed", task.task_id)
-            error = str(exc)
-        finally:
-            with self._lock:
-                task.error = error
-                scheduler = self._scheduler
-                if scheduler is not None:
-                    job = scheduler.get_job(task.task_id)
-                    if job is not None:
-                        task.next_run = job.next_run_time
-                    else:
-                        task.compute_next_run(reference)
-                else:
-                    task.compute_next_run(reference)
+    def stop(self) -> None:
+        if self.scheduler.running:
+            self.scheduler.shutdown(wait=False)
+            self.is_running = False
+            logger.info("Scheduler stopped")
+
+    def restart(self) -> None:
+        self.stop()
+        self.load_config()
+        self.empty_tasks()
+        self.load_tasks()
+        self.start()
+
+    def get_status(self) -> Dict[str, Any]:
+        jobs = self.scheduler.get_jobs()
+        tasks_info = []
+        for job in jobs:
+            task_info = {
+                "id": job.id,
+                "next_run": job.next_run_time,
+            }
+            tasks_info.append(task_info)
+        return {
+            "running": self.is_running,
+            "task_count": len(jobs),
+            "tasks": tasks_info,
+        }
+
+    def empty_tasks(self) -> None:
+        self.scheduler.remove_all_jobs()
+        logger.info("All scheduled tasks have been removed")
+
+    def canvas_executer(self, task: ScheduledTask) -> None:
+        logger.info(f"Executing task {task.task_name} for device {task.device_name}")
 
 
 __all__ = ["DotDaemon", "DotDaemonError", "ScheduledTask"]

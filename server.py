@@ -67,7 +67,7 @@ def build_daemon_payload(daemon: DotDaemon | None) -> dict[str, Any]:
             "error": daemon_boot_error,
         }
 
-    status = daemon.status()
+    status = daemon.get_status()
     status["error"] = daemon_boot_error
     return status
 
