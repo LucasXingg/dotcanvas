@@ -808,11 +808,25 @@
     function getDefaultViewCode(viewType) {
       switch (viewType) {
         case 'SquareView':
-          return `return {\n    "type": "SquareView",\n    "location_x": 20,\n    "location_y": 20,\n    "width": 80,\n    "height": 80,\n    "fill": "#D1E8FF",\n    "outline": "#1E3A8A",\n}`;
+          return `return {\n    "type": "SquareView",\n    "location_x": 20,\n    "location_y": 20,\n    "width": 80,\n    "height": 80,\n    "fill": "#D1E8FF",\n    "outline": "#1E3A8A",\n    "corner_radius": 12,\n}`;
         case 'CircleView':
           return `return {\n    "type": "CircleView",\n    "location_x": 40,\n    "location_y": 40,\n    "width": 72,\n    "height": 72,\n    "fill": "#FDE68A",\n    "outline": "#92400E",\n}`;
         case 'TextView':
           return `return {\n    "type": "TextView",\n    "location_x": 16,\n    "location_y": 32,\n    "width": 120,\n    "height": 40,\n    "text": "${currentLanguage === 'zh' ? '你好，世界' : 'Hello world'}",\n    "fill": "#111827",\n    "font_size": 18,\n}`;
+        case 'ProgressBarView':
+          return `return {\n    "type": "ProgressBarView",\n    "location_x": 16,\n    "location_y": 60,\n    "width": 200,\n    "height": 24,\n    "progress": 65,\n    "background_fill": "#E5E7EB",\n    "progress_fill": "#10B981",\n    "outline": "#374151",\n    "corner_radius": 12,\n}`;
+        case 'DigitalClockView':
+          return `return {\n    "type": "DigitalClockView",\n    "location_x": 16,\n    "location_y": 24,\n    "width": 180,\n    "height": 48,\n    "format": "%H:%M:%S",\n    "timezone": "UTC",\n    "fill": "#111827",\n    "background_fill": "#F9FAFB",\n    "font_size": 28,\n}`;
+        case 'AnalogClockView':
+          return `return {\n    "type": "AnalogClockView",\n    "location_x": 16,\n    "location_y": 16,\n    "width": 120,\n    "height": 120,\n    "timezone": "UTC",\n    "face_fill": "#F9FAFB",\n    "outline": "#1F2937",\n    "hand_color": "#1F2937",\n    "second_hand_color": "#EF4444",\n    "tick_color": "#6B7280",\n}`;
+        case 'ImageView':
+          return `return {\n    "type": "ImageView",\n    "location_x": 16,\n    "location_y": 16,\n    "width": 120,\n    "height": 96,\n    "source_type": "url",\n    "url": "https://picsum.photos/seed/dotcanvas/120/96",\n    "maintain_aspect_ratio": true,\n    "background_fill": "#FFFFFF",\n}`;
+        case 'LucideIconView':
+          return `return {\n    "type": "LucideIconView",\n    "location_x": 32,\n    "location_y": 32,\n    "width": 64,\n    "height": 64,\n    "icon": "sun",\n    "color": "#F59E0B",\n    "background_fill": "#FEF3C7",\n}`;
+        case 'TriangleView':
+          return `return {\n    "type": "TriangleView",\n    "location_x": 24,\n    "location_y": 24,\n    "width": 96,\n    "height": 96,\n    "direction": "up",\n    "fill": "#F59E0B",\n    "outline": "#92400E",\n}`;
+        case 'WeatherView':
+          return `return {\n    "type": "WeatherView",\n    "location_x": 12,\n    "location_y": 12,\n    "width": 220,\n    "height": 120,\n    "location": "Berlin",\n    "temperature": "21°C",\n    "condition": "Sunny",\n    "updated_at": new Date().toISOString(),\n    "timezone": "Europe/Berlin",\n    "fill": "#111827",\n    "secondary_fill": "#6B7280",\n    "font_size": 20,\n    "background_fill": "#E0F2FE",\n}`;
         default:
           return `return {\n    "type": "${viewType}",\n    "location_x": 0,\n    "location_y": 0,\n    "width": 100,\n    "height": 100,\n}`;
       }
