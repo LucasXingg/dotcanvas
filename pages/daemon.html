@@ -182,10 +182,11 @@
 <body>
   <header>
     <div class="header-left">
-      <span data-i18n="header.title">画布管理器</span>
+      <span data-i18n="header.title">DotCanvas</span>
       <nav>
         <a href="canvas.html" data-i18n="nav.canvas">画布编辑</a>
         <a href="daemon.html" class="active" data-i18n="nav.daemon">守护进程控制</a>
+        <a href="config.html" data-i18n="nav.config">配置管理</a>
       </nav>
     </div>
     <select id="language-select" class="language-select">
@@ -219,6 +220,7 @@
     </section>
   </main>
 
+  <script src="dotcanvas-message-box.js"></script>
   <script>
     const languageSelect = document.getElementById('language-select');
     const daemonStatusText = document.getElementById('daemon-status-text');
@@ -241,9 +243,10 @@
 
     const translations = {
       zh: {
-        'header.title': '画布管理器',
+        'header.title': 'DotCanvas',
         'nav.canvas': '画布编辑',
         'nav.daemon': '守护进程控制',
+        'nav.config': '配置管理',
         'section.daemonControl': '守护进程控制',
         'section.scheduledTasks': '计划任务',
         'section.taskHint': '任务配置来自服务端配置文件，修改后请重新加载守护进程。',
@@ -259,6 +262,7 @@
         'daemon.noTasks': '未配置任何计划任务。',
         'daemon.taskTitle': '{device} · {type}',
         'daemon.startedAt': '启动时间：{value}',
+        'daemon.taskCount': '计划任务数：{value}',
         'daemon.nextRun': '下次执行：{value}',
         'daemon.lastRun': '上次执行：{value}',
         'daemon.type': '类型：{value}',
@@ -271,9 +275,10 @@
         'alt.preview': '画布预览',
       },
       en: {
-        'header.title': 'Canvas Manager',
+        'header.title': 'DotCanvas',
         'nav.canvas': 'Canvas Editor',
         'nav.daemon': 'Daemon Control',
+        'nav.config': 'Config Manager',
         'section.daemonControl': 'Daemon Control',
         'section.scheduledTasks': 'Scheduled Tasks',
         'section.taskHint': 'Tasks come from the server configuration. Reload the daemon after editing the config file.',
@@ -289,6 +294,7 @@
         'daemon.noTasks': 'No scheduled tasks configured.',
         'daemon.taskTitle': '{device} · {type}',
         'daemon.startedAt': 'Started: {value}',
+        'daemon.taskCount': 'Scheduled tasks: {value}',
         'daemon.nextRun': 'Next run: {value}',
         'daemon.lastRun': 'Last run: {value}',
         'daemon.type': 'Type: {value}',
@@ -304,6 +310,7 @@
     let currentLanguage = translations[storedLanguage] ? storedLanguage : 'zh';
     let daemonStatusState = { key: 'status.daemonLoading', params: {}, isError: false, custom: null };
     let daemonStartedAtValue = '';
+    let daemonTaskCountValue = null;
     let daemonTasksData = [];
 
     function t(key, params = {}) {
@@ -332,18 +339,17 @@
       daemonStatusText.style.color = daemonStatusState.isError ? '#b91c1c' : '#475569';
     }
 
-    function updateDaemonStartedAt(timestamp) {
+    function updateDaemonStartedAt(timestamp, taskCount = null) {
       daemonStartedAtValue = timestamp || '';
-      if (!daemonStartedAtValue) {
-        daemonStartedAt.textContent = '';
-        return;
-      }
-      daemonStartedAt.textContent = t('daemon.startedAt', {
-        value: formatTimestamp(daemonStartedAtValue, '—'),
-      });
+      daemonTaskCountValue = Number.isFinite(taskCount) ? taskCount : null;
+      refreshDaemonStartedAtLanguage();
     }
 
     function refreshDaemonStartedAtLanguage() {
+      if (daemonTaskCountValue !== null) {
+        daemonStartedAt.textContent = t('daemon.taskCount', { value: daemonTaskCountValue });
+        return;
+      }
       if (!daemonStartedAtValue) {
         daemonStartedAt.textContent = '';
         return;
@@ -392,8 +398,14 @@
         setDaemonStatusMessage('status.daemonStopped');
       }
 
-      updateDaemonStartedAt(status.started_at || '');
-      daemonTasksData = Array.isArray(status.tasks) ? status.tasks : [];
+      const tasks = Array.isArray(status.tasks) ? status.tasks : [];
+      const hasTaskCount = Object.prototype.hasOwnProperty.call(status, 'task_count');
+      const normalizedTaskCount = hasTaskCount
+        ? (Number.isFinite(status.task_count) ? status.task_count : tasks.length)
+        : null;
+
+      updateDaemonStartedAt(status.started_at || '', normalizedTaskCount);
+      daemonTasksData = tasks;
       renderDaemonTasks();
 
       if (status.error) {
@@ -418,45 +430,18 @@
         card.className = 'daemon-task-card';
 
         const title = document.createElement('h3');
-        const deviceName = task.device_name || t('daemon.unknownDevice');
-        const taskType = task.type || '';
-        title.textContent = t('daemon.taskTitle', { device: deviceName, type: taskType });
+        const taskId = (task && (task.id || task.task_id)) || '-';
+        title.textContent = t('daemon.taskId', { value: taskId });
         card.appendChild(title);
 
         const meta = document.createElement('div');
         meta.className = 'daemon-task-meta';
 
-        const taskIdLine = document.createElement('div');
-        taskIdLine.textContent = t('daemon.taskId', { value: task.task_id || '-' });
-        meta.appendChild(taskIdLine);
-
-        if (task.device_id) {
-          const deviceLine = document.createElement('div');
-          deviceLine.textContent = t('daemon.deviceId', { value: task.device_id });
-          meta.appendChild(deviceLine);
-        }
-
-        const typeLine = document.createElement('div');
-        typeLine.textContent = t('daemon.type', { value: taskType || '-' });
-        meta.appendChild(typeLine);
-
         const nextRunLine = document.createElement('div');
         nextRunLine.textContent = t('daemon.nextRun', {
-          value: formatTimestamp(task.next_run, t('daemon.notRun')),
+          value: formatTimestamp(task && task.next_run, t('daemon.notRun')),
         });
         meta.appendChild(nextRunLine);
-
-        const lastRunLine = document.createElement('div');
-        lastRunLine.textContent = t('daemon.lastRun', {
-          value: formatTimestamp(task.last_run, t('daemon.notRun')),
-        });
-        meta.appendChild(lastRunLine);
-
-        if (task.params && typeof task.params === 'object' && Object.keys(task.params).length) {
-          const paramsLine = document.createElement('div');
-          paramsLine.textContent = t('daemon.params', { value: JSON.stringify(task.params) });
-          meta.appendChild(paramsLine);
-        }
 
         if (task.error) {
           const errorLine = document.createElement('div');

@@ -2,10 +2,10 @@ import logging
 from io import BytesIO
 from typing import Any, List
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 from canvas.canvas_manager import (
     CanvasManagerError,
@@ -20,14 +20,26 @@ from canvas.canvas_manager import (
 )
 
 from src.daemon import DotDaemon, DotDaemonError
+from src.log_buffer import get_logs, log_buffer_handler
+from src.service_config import ServercConfig
 
 
 app = FastAPI()
 app.mount("/ui", StaticFiles(directory="pages", html=True), name="pages")
 
 
-logger = logging.getLogger(__name__)
+@app.get("/", include_in_schema=False)
+def root():
+    return RedirectResponse(url="/ui/daemon.html")
 
+# config loggers
+dot_logger = logging.getLogger("dot")
+if log_buffer_handler not in dot_logger.handlers:
+    log_buffer_handler.setFormatter(logging.Formatter("%(levelname)s | %(name)s | %(message)s"))
+    dot_logger.addHandler(log_buffer_handler)
+dot_logger.setLevel(logging.INFO)
+
+logger = logging.getLogger("dot.server")
 
 daemon_boot_error: str | None = None
 
@@ -67,7 +79,7 @@ def build_daemon_payload(daemon: DotDaemon | None) -> dict[str, Any]:
             "error": daemon_boot_error,
         }
 
-    status = daemon.status()
+    status = daemon.get_status()
     status["error"] = daemon_boot_error
     return status
 
@@ -86,6 +98,30 @@ class CanvasUpdatePayload(BaseModel):
 class CanvasCreatePayload(BaseModel):
     # canvas_id: str
     name: str
+
+
+class ScheduleConfigPayload(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    name: str
+    canvas_id: str
+    cron: str
+    params: dict[str, Any] = Field(default_factory=dict)
+
+
+class DeviceConfigPayload(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    name: str
+    device_id: str
+    schedules: list[ScheduleConfigPayload] = Field(default_factory=list)
+
+
+class ServiceConfigPayload(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    api_key: str
+    devices: list[DeviceConfigPayload] = Field(default_factory=list)
 
 
 @app.get("/canvases")
@@ -165,6 +201,15 @@ def get_available_views():
     return {"views": list_available_views()}
 
 
+@app.get("/logs")
+def get_recent_logs(
+    since: int = Query(default=0, ge=0, description="Return entries with id greater than this value"),
+    limit: int = Query(default=50, ge=1, le=500, description="Maximum number of entries to return"),
+):
+    logs = get_logs(since=since, limit=limit)
+    return {"logs": logs}
+
+
 @app.get("/daemon/status")
 def get_daemon_status():
     return build_daemon_payload(dot_daemon)
@@ -198,3 +243,35 @@ def restart_daemon():
     except DotDaemonError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return build_daemon_payload(daemon)
+
+
+@app.get("/config")
+def get_service_config():
+    try:
+        config = ServercConfig()
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"config": config.as_dict()}
+
+
+@app.put("/config")
+def update_service_config(payload: ServiceConfigPayload):
+    try:
+        config = ServercConfig()
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    incoming = payload.model_dump(mode="python")
+    merged = config.as_dict()
+    merged["api_key"] = incoming.get("api_key", "")
+    merged["devices"] = incoming.get("devices", [])
+
+    errors = config.update_and_save(merged)
+    if errors:
+        raise HTTPException(status_code=400, detail={"errors": errors})
+
+    return {"config": config.as_dict()}
