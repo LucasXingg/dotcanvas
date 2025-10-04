@@ -1,4 +1,4 @@
-import uuid
+import logging
 import importlib
 import inspect
 import pkgutil
@@ -9,7 +9,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from . import views
 
-
+logger = logging.getLogger("dot.canvas")
 
 class _BaseCanvas():
 
@@ -31,7 +31,7 @@ class _BaseCanvas():
                     view_cls.draw(draw, view_config)
             except Exception as e:
                 view_type = view_config.get("type") if isinstance(view_config, dict) else "unknown"
-                print(f"Error rendering view {view_type}: {e}")
+                logger.error(f"Error rendering view {view_type}: {e}")
         return canvas_img
 
     @staticmethod
@@ -47,6 +47,7 @@ class _BaseCanvas():
                 if key not in view_config:
                     raise ValueError(f"Missing required key: {key}")
         except Exception as e:
+            logger.error(f"View builder validation error: {e}")
             return False
         return True
 

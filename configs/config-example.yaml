@@ -2,13 +2,13 @@
 # 复制此文件为 config.yaml 并填入你的实际配置
 
 # API 密钥 - 从你的服务提供商获取
-api_key: "dot_app_RdSgYwSerFjmihBkKwvJbXpbivZtJPkqjyEgSqRPrbEjUIUXOiWSOwEoPvNUffRg"
+api_key: ""
 
 # 设备列表
 devices:
   # 设备示例 1：办公室设备，包含多种消息类型
   - name: "办公室设备"
-    device_id: "9C9E6E3B8548"
+    device_id: ""
     schedules:
 
       # Test

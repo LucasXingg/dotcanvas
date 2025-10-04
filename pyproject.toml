@@ -11,4 +11,6 @@ dependencies = [
     "pillow>=11.3.0",
     "croniter>=1.4.1",
     "apscheduler>=3.11.0",
+    "requests>=2.32.5",
+    "cairosvg>=2.8.2",
 ]
