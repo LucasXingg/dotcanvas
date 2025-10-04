@@ -44,6 +44,28 @@ uvicorn server:app --reload
 ```
 运行以上命令后，打开 <http://localhost:8000/> 访问管理界面。
 
+## Docker 部署
+
+如果你希望在容器中运行 DotCanvas，可以使用项目内置的 Dockerfile 构建镜像。
+部署步骤与本地启动流程保持一致：先准备配置文件，再启动服务。
+
+```bash
+# 复制配置文件（仅首次需要，可按需修改内容）
+cp configs/config-example.yaml configs/config.yaml
+
+# 构建镜像
+docker build -t dotcanvas .
+
+# 运行容器，映射端口并挂载配置目录
+docker run \
+  -p 8000:8000 \
+  -v $(pwd)/configs:/app/configs \
+  dotcanvas
+```
+
+容器启动后，同样通过 <http://localhost:8000/> 访问管理界面。
+当你需要更新配置时，直接编辑宿主机 `configs/config.yaml` 并重启容器即可。
+
 # 自定义你的 Dot.
 
 ## 画布编辑
