@@ -25,17 +25,17 @@ class Canvas(_BaseCanvas):
         return {
             "type": "SquareView",
             "location_x": 30,
-            "location_y": 30,
+            "location_y": 35,
             "width": 165,
             "height": 35,
             "fill": "#D1E8FF",
             "outline": "#1E3A8A",
-            "corner_radius": 5,
+            "corner_radius": 6,
         }
 
 
     @staticmethod
-    def count_down_number() -> dict:
+    def count_down_text() -> dict:
         from datetime import datetime
 
         target_date_str = "2025-12-31"
@@ -47,12 +47,12 @@ class Canvas(_BaseCanvas):
 
         return {
             "type": "TextView",
-            "location_x": 40,
-            "location_y": 40,
+            "location_x": 41,
+            "location_y": 43,
             "width": 120,
             "height": 40,
             "text": f"距离2025年结束还有 {day_left_str} 天",
-            "fill": "#111827",
+            "fill": "#000000",
             "font_size": 12,
         }
 
@@ -75,10 +75,10 @@ class Canvas(_BaseCanvas):
             "width": 264,
             "height": 24,
             "progress": progress,
-            "background_fill": "#E5E7EB",
-            "progress_fill": "#10B981",
-            "outline": "#374151",
-            "corner_radius": 12,
+            "background_fill": "#EDEDED",
+            "progress_fill": "#010101",
+            "outline": "#000000",
+            "corner_radius": 6,
         }
 
 
@@ -87,7 +87,7 @@ class Canvas(_BaseCanvas):
         return {
             "type": "LucideIconView",
             "location_x": 210,
-            "location_y": 15,
+            "location_y": 20,
             "width": 64,
             "height": 64,
             "icon": "calendar-check",
@@ -98,7 +98,7 @@ CONFIG = {
     "name": "countdown_canvas",
     "views": {
         "hero_square": Canvas.hero_square,
-        "count_down_number": Canvas.count_down_number,
+        "count_down_text": Canvas.count_down_text,
         "countdown_bar": Canvas.countdown_bar,
         "icon_view": Canvas.icon_view,
     }  # view_id -> view_builder

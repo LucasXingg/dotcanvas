@@ -13,13 +13,38 @@ DotCanvas 是一个轻量级的可视化Dot编辑工具.
 
 # 快速开始
 
-## 环境要求
+## Docker 部署
+
+如果你希望在容器中运行 DotCanvas，可以使用项目内置的 Dockerfile 构建镜像。
+部署步骤与本地启动流程保持一致：先准备配置文件，再启动服务。
+
+```bash
+# 复制配置文件（仅首次需要，可按需修改内容）
+cp configs/config-example.yaml configs/config.yaml
+
+# 构建镜像
+docker build -t dotcanvas .
+
+# 运行容器，映射端口并挂载配置目录
+docker run -d \
+  -p 8000:8000 \
+  -v $(pwd)/configs:/app/configs \
+  -v $(pwd)/canvas:/app/canvas \
+  dotcanvas
+```
+
+容器启动后，同样通过 <http://localhost:8000/> 访问管理界面。
+当你需要更新配置时，直接编辑宿主机 `configs/config.yaml` 并重启容器即可。
+
+## 本地部署
+
+### 环境要求
 
 - Python 3.12 及以上版本
 - 推荐使用uv（或兼容 `pyproject.toml` 的其他依赖管理工具）
 - cairo pango gdk-pixbuf libffi （用于执行svg2png转换）
 
-## 安装
+### 安装
 
 ```bash
 git clone https://github.com/LucasXingg/dotcanvas.git
@@ -33,7 +58,7 @@ uv sync
 cp configs/config-example.yaml configs/config.yaml
 ```
 
-## 启动服务
+### 启动服务
 
 ```bash
 # 激活虚拟环境
