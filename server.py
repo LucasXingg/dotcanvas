@@ -2,7 +2,7 @@ import logging
 from io import BytesIO
 from typing import Any, List
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -20,14 +20,20 @@ from canvas.canvas_manager import (
 )
 
 from src.daemon import DotDaemon, DotDaemonError
+from src.log_buffer import get_logs, log_buffer_handler
 
 
 app = FastAPI()
 app.mount("/ui", StaticFiles(directory="pages", html=True), name="pages")
 
+# config loggers
+dot_logger = logging.getLogger("dot")
+if log_buffer_handler not in dot_logger.handlers:
+    log_buffer_handler.setFormatter(logging.Formatter("%(levelname)s | %(name)s | %(message)s"))
+    dot_logger.addHandler(log_buffer_handler)
+dot_logger.setLevel(logging.INFO)
 
-logger = logging.getLogger(__name__)
-
+logger = logging.getLogger("dot.server")
 
 daemon_boot_error: str | None = None
 
@@ -163,6 +169,15 @@ def preview_canvas(canvas_id: str):
 @app.get("/views")
 def get_available_views():
     return {"views": list_available_views()}
+
+
+@app.get("/logs")
+def get_recent_logs(
+    since: int = Query(default=0, ge=0, description="Return entries with id greater than this value"),
+    limit: int = Query(default=50, ge=1, le=500, description="Maximum number of entries to return"),
+):
+    logs = get_logs(since=since, limit=limit)
+    return {"logs": logs}
 
 
 @app.get("/daemon/status")

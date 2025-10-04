@@ -12,7 +12,7 @@ from croniter import croniter
 from .service_config import ServercConfig
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("dot.daemon")
 
 
 TaskHandler = Callable[["ScheduledTask"], None]
@@ -60,8 +60,6 @@ class DotDaemon:
         self.load_config()
 
         self.scheduler = BackgroundScheduler()
-
-        self.load_tasks()
         self.start()
 
     def load_config(self) -> None:
@@ -70,6 +68,7 @@ class DotDaemon:
             raise DotDaemonError("Invalid configuration")
         
     def load_tasks(self) -> None:
+        self.scheduler = BackgroundScheduler()
         for device, _, schedule in self.config.iter_device_schedules():
             try:
                 task = ScheduledTask(
@@ -95,12 +94,8 @@ class DotDaemon:
 
     def start(self) -> None:
         # If scheduler was shut down, create a new one
-        if not self.scheduler or not self.scheduler.running:
-            # If the executor pool is dead, APScheduler will not restart
-            # So we just recreate a fresh scheduler
-            if getattr(self.scheduler, "_stopped", False):  # internal flag after shutdown
-                self.scheduler = BackgroundScheduler()
-                self.load_tasks()
+        if not self.scheduler.running:
+            self.load_tasks()
 
             self.scheduler.start()
             self.is_running = True
