@@ -3,7 +3,7 @@ from io import BytesIO
 from typing import Any, List
 
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import StreamingResponse
+from fastapi.responses import RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -26,6 +26,11 @@ from src.service_config import ServercConfig
 
 app = FastAPI()
 app.mount("/ui", StaticFiles(directory="pages", html=True), name="pages")
+
+
+@app.get("/", include_in_schema=False)
+def root():
+    return RedirectResponse(url="/ui/daemon.html")
 
 # config loggers
 dot_logger = logging.getLogger("dot")

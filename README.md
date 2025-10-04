@@ -89,9 +89,8 @@ Then open the UI at <http://localhost:8000/ui/>. The FastAPI docs are available 
 
 - The project currently has no automated test suite. Consider adding `pytest` tests for the canvas manager when extending functionality.
 - Changes to canvas modules are immediately written to disk; use version control to keep track of generated canvases and revert when necessary.
-- The front-end lives in `pages/index.html` and communicates with the FastAPI backend via fetch calls.
+- The front-end entry page now lives in `pages/daemon.html` and communicates with the FastAPI backend via fetch calls.
 
 - 项目目前尚未包含自动化测试，后续扩展功能时建议添加基于 `pytest` 的测试。
 - 画布模块保存后会立即写入磁盘，建议配合版本控制管理生成的文件，便于回滚。
-- 前端位于 `pages/index.html`，通过 Fetch API 与 FastAPI 后端通信。
-
+- 前端入口位于 `pages/daemon.html`，通过 Fetch API 与 FastAPI 后端通信。

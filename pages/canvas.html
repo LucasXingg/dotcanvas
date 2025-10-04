@@ -14,6 +14,9 @@
       padding: 0;
       background: #f5f5f5;
       color: #1f2937;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
     }
 
     header {
@@ -57,11 +60,50 @@
       border-bottom-color: #60a5fa;
     }
 
-    main {
-      display: grid;
-      grid-template-columns: 2fr 1fr;
+    main.layout {
+      flex: 1;
+      display: flex;
       gap: 1.5rem;
       padding: 1.5rem 2rem 3rem 2rem;
+      overflow: hidden;
+    }
+
+    .left-panel {
+      flex: 0 0 360px;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      height: 100%;
+    }
+
+    .manage-section {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .manage-section-inner {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      padding-right: 0.5rem;
+    }
+
+    .manage-section-inner .row {
+      margin-bottom: 1rem;
+    }
+
+    .right-panel {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    .coding-section {
+      flex: 1;
+      overflow-y: auto;
+      padding-right: 0.5rem;
     }
 
     section {
@@ -125,6 +167,26 @@
     button.secondary {
       background: #e5e7eb;
       color: #1f2937;
+    }
+
+    .preview-floating {
+      position: fixed;
+      left: 1.5rem;
+      bottom: 1.5rem;
+      width: min(320px, calc(100vw - 3rem));
+      z-index: 900;
+    }
+
+    .preview-floating section {
+      margin: 0;
+    }
+
+    @media (max-width: 640px) {
+      .preview-floating {
+        left: 1rem;
+        bottom: 1rem;
+        width: calc(100vw - 2rem);
+      }
     }
 
     .language-select {
@@ -198,7 +260,7 @@
 
     .view-params-title {
       font-weight: 600;
-      margin-bottom: 0.5rem;
+      margin: 0;
       color: #0f172a;
     }
 
@@ -216,6 +278,47 @@
       font-family: 'Fira Code', 'Courier New', Courier, monospace;
       font-weight: 600;
       color: #111827;
+    }
+
+    .view-editor-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 1.25rem;
+      margin-top: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .view-editor-title {
+      font-weight: 600;
+      color: #0f172a;
+    }
+
+    .view-editor-section {
+      display: flex;
+      gap: 1.25rem;
+      margin-top: 0.75rem;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+
+    .view-editor-field {
+      flex: 1 1 380px;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .view-editor-section textarea {
+      min-height: 200px;
+      overflow: hidden;
+    }
+
+    .view-editor-section .view-params {
+      flex: 1 1 260px;
+      margin-top: 0;
+      display: flex;
+      flex-direction: column;
     }
 
     .preview-wrapper {
@@ -253,12 +356,38 @@
     }
 
     @media (max-width: 1024px) {
-      main {
-        grid-template-columns: 1fr;
+      main.layout {
+        flex-direction: column;
+        overflow: auto;
+        padding: 1.5rem 1.25rem 2.5rem 1.25rem;
+      }
+
+      .left-panel,
+      .right-panel {
+        flex: initial;
+        width: 100%;
+      }
+
+      .right-panel {
+        overflow: visible;
+      }
+
+      .coding-section {
+        padding-right: 0;
       }
 
       .header-left {
         align-items: flex-start;
+      }
+
+      .view-editor-section {
+        flex-direction: column;
+      }
+
+      .view-editor-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
       }
     }
   </style>
@@ -266,7 +395,7 @@
 <body>
   <header>
     <div class="header-left">
-      <span data-i18n="header.title">画布管理器</span>
+      <span data-i18n="header.title">DotCanvas</span>
       <nav>
         <a href="canvas.html" class="active" data-i18n="nav.canvas">画布编辑</a>
         <a href="daemon.html" data-i18n="nav.daemon">守护进程</a>
@@ -279,70 +408,75 @@
     </select>
   </header>
 
-  <main>
-    <section>
-      <h2 data-i18n="section.canvasSelection">画布选择</h2>
-      <div class="row">
-        <div>
-          <label for="canvas-select" data-i18n="label.availableCanvases">可用画布</label>
-          <select id="canvas-select"></select>
+  <main class="layout">
+    <div class="left-panel">
+      <section class="manage-section">
+        <div class="manage-section-inner">
+          <h2 data-i18n="section.canvasSelection">画布选择</h2>
+          <div class="row">
+            <div>
+              <label for="canvas-select" data-i18n="label.availableCanvases">可用画布</label>
+              <select id="canvas-select"></select>
+            </div>
+            <div>
+              <label for="canvas-name" data-i18n="label.canvasName">画布名称</label>
+              <input type="text" id="canvas-name" placeholder="输入画布名称" data-i18n-placeholder="placeholder.canvasName">
+            </div>
+            <div>
+              <label for="canvas-id" data-i18n="label.canvasId">画布 ID</label>
+              <input type="text" id="canvas-id" placeholder="例如：canvas1" data-i18n-placeholder="placeholder.canvasId">
+            </div>
+          </div>
+          <div class="actions">
+            <button id="save-btn" data-i18n="button.save">保存更改</button>
+            <button id="preview-btn" class="secondary" data-i18n="button.preview">刷新预览</button>
+          </div>
+          <hr style="margin: 1.5rem 0; border: 0; border-top: 1px solid #e5e7eb;">
+          <h2 data-i18n="section.createCanvas">创建新画布</h2>
+          <div class="row">
+            <div>
+              <label for="new-canvas-name" data-i18n="label.newCanvasName">新画布名称</label>
+              <input type="text" id="new-canvas-name" placeholder="输入新的画布名称" data-i18n-placeholder="placeholder.newCanvasName">
+            </div>
+            <div>
+              <button id="create-canvas-btn" data-i18n="button.createCanvas">创建画布</button>
+            </div>
+          </div>
+          <hr style="margin: 1.5rem 0; border: 0; border-top: 1px solid #e5e7eb;">
+          <h2 data-i18n="section.addView">添加视图</h2>
+          <div class="row">
+            <div>
+              <label for="new-view-id" data-i18n="label.newViewId">视图构建函数 ID</label>
+              <input type="text" id="new-view-id" placeholder="例如：hero_square" data-i18n-placeholder="placeholder.newViewId">
+            </div>
+            <div>
+              <label for="new-view-type" data-i18n="label.newViewType">视图类型</label>
+              <select id="new-view-type"></select>
+            </div>
+            <div>
+              <button id="add-view-btn" data-i18n="button.addView">添加视图</button>
+            </div>
+          </div>
         </div>
-        <div>
-          <label for="canvas-name" data-i18n="label.canvasName">画布名称</label>
-          <input type="text" id="canvas-name" placeholder="输入画布名称" data-i18n-placeholder="placeholder.canvasName">
-        </div>
-        <div>
-          <label for="canvas-id" data-i18n="label.canvasId">画布 ID</label>
-          <input type="text" id="canvas-id" placeholder="例如：canvas1" data-i18n-placeholder="placeholder.canvasId">
-        </div>
-      </div>
-      <div class="actions">
-        <button id="save-btn" data-i18n="button.save">保存更改</button>
-        <button id="preview-btn" class="secondary" data-i18n="button.preview">刷新预览</button>
-      </div>
-      <hr style="margin: 1.5rem 0; border: 0; border-top: 1px solid #e5e7eb;">
-      <h2 data-i18n="section.createCanvas">创建新画布</h2>
-      <div class="row">
-        <div>
-          <label for="new-canvas-name" data-i18n="label.newCanvasName">新画布名称</label>
-          <input type="text" id="new-canvas-name" placeholder="输入新的画布名称" data-i18n-placeholder="placeholder.newCanvasName">
-        </div>
-        <div>
-          <button id="create-canvas-btn" data-i18n="button.createCanvas">创建画布</button>
-        </div>
-      </div>
-      <hr style="margin: 1.5rem 0; border: 0; border-top: 1px solid #e5e7eb;">
-      <h2 data-i18n="section.addView">添加视图</h2>
-      <div class="row">
-        <div>
-          <label for="new-view-id" data-i18n="label.newViewId">视图构建函数 ID</label>
-          <input type="text" id="new-view-id" placeholder="例如：hero_square" data-i18n-placeholder="placeholder.newViewId">
-        </div>
-        <div>
-          <label for="new-view-type" data-i18n="label.newViewType">视图类型</label>
-          <select id="new-view-type"></select>
-        </div>
-        <div>
-          <button id="add-view-btn" data-i18n="button.addView">添加视图</button>
-        </div>
-      </div>
-      <p class="status-text" id="status-text" data-i18n="status.selectCanvas">请选择一个画布开始编辑。</p>
-    </section>
+        <p class="status-text" id="status-text" data-i18n="status.selectCanvas">请选择一个画布开始编辑。</p>
+      </section>
+    </div>
+    <div class="right-panel">
+      <section class="coding-section">
+        <h2 data-i18n="section.views">视图</h2>
+        <div id="views-container" class="views-container"></div>
+      </section>
+    </div>
+  </main>
 
+  <div class="preview-floating">
     <section>
       <h2 data-i18n="section.livePreview">实时预览</h2>
       <div class="preview-wrapper">
         <img id="canvas-preview" alt="画布预览" data-i18n-alt="alt.preview" src="" />
       </div>
     </section>
-  </main>
-
-  <main style="padding-top: 0;">
-    <section style="grid-column: 1 / -1;">
-      <h2 data-i18n="section.views">视图</h2>
-      <div id="views-container" class="views-container"></div>
-    </section>
-  </main>
+  </div>
 
   <script src="dotcanvas-message-box.js"></script>
   <script>
@@ -373,7 +507,7 @@
 
     const translations = {
       zh: {
-        'header.title': '画布管理器',
+        'header.title': 'DotCanvas',
         'nav.canvas': '画布编辑',
         'nav.daemon': '守护进程控制',
         'nav.config': '配置管理',
@@ -426,7 +560,7 @@
         'alt.preview': '画布预览',
       },
       en: {
-        'header.title': 'Canvas Manager',
+        'header.title': 'DotCanvas',
         'nav.canvas': 'Canvas Editor',
         'nav.daemon': 'Daemon Control',
         'nav.config': 'Config Manager',
@@ -558,6 +692,13 @@
       setLanguage(event.target.value);
     });
 
+    document.addEventListener('keydown', event => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+        event.preventDefault();
+        saveCanvas();
+      }
+    });
+
     document.getElementById('save-btn').addEventListener('click', saveCanvas);
     document.getElementById('preview-btn').addEventListener('click', refreshPreview);
     document.getElementById('create-canvas-btn').addEventListener('click', createCanvas);
@@ -645,6 +786,11 @@
       }
     }
 
+    function autoResizeTextarea(textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = `${textarea.scrollHeight}px`;
+    }
+
     function renderViews() {
       viewsContainer.innerHTML = '';
       if (!currentCanvas) {
@@ -696,14 +842,12 @@
         idWrapper.appendChild(idInput);
         controls.appendChild(idWrapper);
 
-        const editorLabel = document.createElement('label');
-        editorLabel.textContent = t('label.viewBuilderBody');
-        editorLabel.style.marginTop = '0.75rem';
-
         const textarea = document.createElement('textarea');
         textarea.value = view.code;
+        textarea.setAttribute('aria-label', t('label.viewBuilderBody'));
         textarea.addEventListener('input', event => {
           view.code = event.target.value;
+          autoResizeTextarea(textarea);
           renderParams();
         });
 
@@ -726,10 +870,7 @@
 
         const paramsContainer = document.createElement('div');
         paramsContainer.className = 'view-params';
-        const paramsTitle = document.createElement('div');
-        paramsTitle.className = 'view-params-title';
         const paramsContent = document.createElement('div');
-        paramsContainer.appendChild(paramsTitle);
         paramsContainer.appendChild(paramsContent);
 
         const resolveViewType = () => {
@@ -783,15 +924,33 @@
           paramsContent.appendChild(list);
         };
 
+        const editorHeader = document.createElement('div');
+        editorHeader.className = 'view-editor-header';
+        const editorTitle = document.createElement('div');
+        editorTitle.className = 'view-editor-title';
+        editorTitle.textContent = t('label.viewBuilderBody');
+        const paramsTitle = document.createElement('div');
+        paramsTitle.className = 'view-params-title';
+        editorHeader.appendChild(editorTitle);
+        editorHeader.appendChild(paramsTitle);
+
         renderParams();
 
         card.appendChild(header);
         card.appendChild(controls);
-        card.appendChild(editorLabel);
-        card.appendChild(textarea);
-        card.appendChild(paramsContainer);
+        card.appendChild(editorHeader);
+        const editorSection = document.createElement('div');
+        editorSection.className = 'view-editor-section';
+        const editorField = document.createElement('div');
+        editorField.className = 'view-editor-field';
+        editorField.appendChild(textarea);
+        editorSection.appendChild(editorField);
+        editorSection.appendChild(paramsContainer);
+        card.appendChild(editorSection);
         card.appendChild(meta);
         viewsContainer.appendChild(card);
+
+        requestAnimationFrame(() => autoResizeTextarea(textarea));
       });
     }
 
