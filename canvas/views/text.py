@@ -13,7 +13,6 @@ class TextView(_BaseView):
         "fill": "Text color",
         "font_size": "Font size in points",
         "font_name": "Font name (optional)",
-        "font_weight": "Font weight (e.g. 'bold', optional)",
     }
 
 
@@ -25,10 +24,9 @@ class TextView(_BaseView):
         color = config.get("fill", "#111827")
         font_size = int(config.get("font_size", 18))
         font_name = config.get("font_name")
-        font_weight = config.get("font_weight")
 
         # Load font (auto-detects bundled CJK fonts or system fallback)
-        font = TextView.font_manager.get_font(font_size, font_name, font_weight)
+        font = TextView.font_manager.get_font(font_size, font_name)
 
         # Coordinates
         x = config.get("location_x", 0)

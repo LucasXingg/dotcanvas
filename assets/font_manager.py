@@ -69,10 +69,7 @@ class FontManager:
             return None
 
         bundled_fonts = [
-            "LXGWWenKai-Regular.ttf",
-            "NotoSansCJK-Regular.ttc",
-            "SourceHanSansSC-Regular.otf",
-            "SourceHanSansSC-VF.otf",
+            "NotoSansSC-Bold.ttf",
         ]
         for fname in bundled_fonts:
             fpath = os.path.join(self._resource_dir, fname)
