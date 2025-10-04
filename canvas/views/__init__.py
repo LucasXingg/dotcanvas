@@ -4,7 +4,7 @@ from .analog_clock import AnalogClockView
 from .circle import CircleView
 from .digital_clock import DigitalClockView
 from .image_view import ImageView
-# from .lucide_icon import LucideIconView
+from .lucide_icon import LucideIconView
 from .progress_bar import ProgressBarView
 from .square import SquareView
 from .text import TextView
@@ -16,7 +16,7 @@ __all__ = [
     "CircleView",
     "DigitalClockView",
     "ImageView",
-    # "LucideIconView",
+    "LucideIconView",
     "ProgressBarView",
     "SquareView",
     "TextView",
