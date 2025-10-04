@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from pathlib import Path
 from typing import Any, Dict, Iterator, Tuple
 
@@ -25,26 +26,88 @@ class ServercConfig:
         if not isinstance(data, dict):
             msg = "Configuration root must be a mapping"
             raise ValueError(msg)
-        self.cfg = data
+        self.cfg = self._normalise_config(data)
 
 
-    def validate(self) -> bool:
-        errors = []
+    def _normalise_config(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        payload: Dict[str, Any] = deepcopy(data)
 
-        if not self.cfg.get("api_key"):
+        api_key = payload.get("api_key", "")
+        payload["api_key"] = api_key if isinstance(api_key, str) else str(api_key)
+
+        devices = payload.get("devices")
+        normalised_devices: list[dict[str, Any]] = []
+        if isinstance(devices, list):
+            for device in devices:
+                if not isinstance(device, dict):
+                    continue
+                device_copy = deepcopy(device)
+                name = device_copy.get("name", "")
+                if not isinstance(name, str):
+                    name = str(name)
+                device_copy["name"] = name
+
+                device_id = device_copy.get("device_id", "")
+                if not isinstance(device_id, str):
+                    device_id = str(device_id)
+                device_copy["device_id"] = device_id
+
+                schedules = device_copy.get("schedules")
+                normalised_schedules: list[dict[str, Any]] = []
+                if isinstance(schedules, list):
+                    for schedule in schedules:
+                        if not isinstance(schedule, dict):
+                            continue
+                        schedule_copy = deepcopy(schedule)
+                        for field in ("name", "canvas_id", "cron"):
+                            value = schedule_copy.get(field, "")
+                            if not isinstance(value, str):
+                                schedule_copy[field] = str(value)
+                        params = schedule_copy.get("params")
+                        if not isinstance(params, dict):
+                            schedule_copy["params"] = {}
+                        normalised_schedules.append(schedule_copy)
+                device_copy["schedules"] = normalised_schedules
+                normalised_devices.append(device_copy)
+
+        payload["devices"] = normalised_devices
+        return payload
+
+    def validate(self, *, verbose: bool = True) -> bool:
+        errors = self.collect_errors(self.cfg)
+
+        if errors:
+            if verbose:
+                print("Validation FAILED:")
+                for error in errors:
+                    print(f" - {error}")
+            return False
+        if verbose:
+            print("Validation OK: no obvious errors found")
+        return True
+
+    def collect_errors(self, data: Dict[str, Any]) -> list[str]:
+        errors: list[str] = []
+
+        api_key = data.get("api_key")
+        if not api_key or not isinstance(api_key, str):
             errors.append("api_key is missing")
 
-        devices = self.cfg.get("devices")
+        devices = data.get("devices")
         if not devices:
             errors.append("devices is missing or empty")
+        elif not isinstance(devices, list):
+            errors.append("devices must be a list")
         else:
             for idx, device in enumerate(devices, 1):
                 if not isinstance(device, dict):
                     errors.append(f"device[{idx}] must be a mapping")
                     continue
-                if not device.get("name"):
+                name = device.get("name")
+                device_id = device.get("device_id")
+                if not name:
                     errors.append(f"device[{idx}].name is missing")
-                if not device.get("device_id"):
+                if not device_id:
                     errors.append(f"device[{idx}].device_id is missing")
                 schedules = device.get("schedules")
                 if schedules is None:
@@ -70,18 +133,17 @@ class ServercConfig:
                         errors.append(
                             f"device[{idx}].schedules[{sidx}].canvas_id is missing"
                         )
-                    if schedule.get("params") is None:
+                    params = schedule.get("params")
+                    if params is None:
                         errors.append(
                             f"device[{idx}].schedules[{sidx}].params is missing"
                         )
+                    elif not isinstance(params, dict):
+                        errors.append(
+                            f"device[{idx}].schedules[{sidx}].params must be a mapping"
+                        )
 
-        if errors:
-            print("Validation FAILED:")
-            for error in errors:
-                print(f" - {error}")
-            return False
-        print("Validation OK: no obvious errors found")
-        return True
+        return errors
 
 
     def iter_device_schedules(self) -> Iterator[Tuple[Dict[str, Any], int, Dict[str, Any]]]:
@@ -90,6 +152,25 @@ class ServercConfig:
             schedules = device.get("schedules") or []
             for index, schedule in enumerate(schedules, 1):
                 yield device, index, schedule
+
+    def get_api_key(self) -> str:
+        return self.cfg.get("api_key", "")
+
+    def as_dict(self) -> Dict[str, Any]:
+        return deepcopy(self.cfg)
+
+    def update_and_save(self, data: Dict[str, Any]) -> list[str]:
+        normalised = self._normalise_config(data)
+        errors = self.collect_errors(normalised)
+        if errors:
+            return errors
+        self.cfg = normalised
+        self.save_config()
+        return []
+
+    def save_config(self) -> None:
+        with self.path.open("w", encoding="utf-8") as fh:
+            yaml.safe_dump(self.cfg, fh, allow_unicode=True, sort_keys=False)
 
 
 if __name__ == "__main__":

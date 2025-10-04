@@ -1,5 +1,6 @@
+import importlib
 import logging
-import threading
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from datetime import datetime
@@ -8,8 +9,13 @@ from typing import Any, Callable, Dict, List, Optional
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from croniter import croniter
+from PIL import Image
+import io
+import base64
+
 
 from .service_config import ServercConfig
+from .api import APIClient
 
 
 logger = logging.getLogger("dot.daemon")
@@ -49,7 +55,7 @@ class DotDaemonError(RuntimeError):
 class DotDaemon:
     """Background worker that executes configured tasks on a cron schedule."""
 
-    def __init__(self, config_path: str | None = None) -> None:
+    def __init__(self, config_path: str | Path | None = None) -> None:
 
         if config_path is None:
             config_path = Path(__file__).resolve().parents[1] / "configs" / "config.yaml"
@@ -58,6 +64,8 @@ class DotDaemon:
 
         self.config_path = config_path
         self.load_config()
+
+        self.api_client = APIClient(key=self.config.get_api_key())
 
         self.scheduler = BackgroundScheduler()
         self.start()
@@ -136,7 +144,49 @@ class DotDaemon:
         logger.info("All scheduled tasks have been removed")
 
     def canvas_executer(self, task: ScheduledTask) -> None:
-        logger.info(f"Executing task {task.task_name} for device {task.device_name}")
+        start_time = time.time()
+        image = None
+        try:
+            canvas_module_name = f"canvas.{task.canvas_id}"
+            canvas_file = Path(__file__).resolve().parents[1] / "canvas" / f"{task.canvas_id}.py"
+
+            if not canvas_file.exists():
+                raise FileNotFoundError(f"Canvas file not found for id '{task.canvas_id}'")
+
+            module = importlib.import_module(canvas_module_name)
+
+            canvas_class = getattr(module, "Canvas", None)
+            render_callable = getattr(canvas_class, "render")
+
+            image = render_callable()
+
+            if image is None:
+                raise ValueError(f"Canvas '{task.canvas_id}' returned no image")
+            
+            base64_image = self.image_to_base64(image)
+            self.api_client.send_image(
+                device_id=task.device_id,
+                image=base64_image)
+
+            task.last_run = datetime.now()
+            task.compute_next_run(task.last_run)
+        except Exception as exc:
+            logger.error(f"Error executing task {task.task_name}: {exc}")
+        end_time = time.time()
+        duration = end_time - start_time
+        logger.info(f"Task {task.task_name} for device {task.device_name} completed. Duration: {duration:.2f} seconds")
+
+    def image_to_base64(self, img: Image.Image, format: str = "PNG") -> str:
+        # Create an in-memory buffer
+        buffered = io.BytesIO()
+        # Save the image into the buffer
+        img.save(buffered, format=format)
+        # Get the byte data
+        img_bytes = buffered.getvalue()
+        # Encode to base64
+        img_b64 = base64.b64encode(img_bytes).decode("utf-8")
+        return img_b64
+
 
 
 __all__ = ["DotDaemon", "DotDaemonError", "ScheduledTask"]

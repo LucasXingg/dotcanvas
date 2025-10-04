@@ -10,6 +10,7 @@ class _NewViewTemplate(_BaseView):
         "custom_param": "Custom Parameter Description", # TODO: Add your custom parameters here
     }
 
+    @staticmethod
     def draw(draw: ImageDraw.ImageDraw, config: dict) -> None:
         # TODO: write your rendering logic here
         # Example drawing logic

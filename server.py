@@ -5,7 +5,7 @@ from typing import Any, List
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 from canvas.canvas_manager import (
     CanvasManagerError,
@@ -21,6 +21,7 @@ from canvas.canvas_manager import (
 
 from src.daemon import DotDaemon, DotDaemonError
 from src.log_buffer import get_logs, log_buffer_handler
+from src.service_config import ServercConfig
 
 
 app = FastAPI()
@@ -92,6 +93,30 @@ class CanvasUpdatePayload(BaseModel):
 class CanvasCreatePayload(BaseModel):
     # canvas_id: str
     name: str
+
+
+class ScheduleConfigPayload(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    name: str
+    canvas_id: str
+    cron: str
+    params: dict[str, Any] = Field(default_factory=dict)
+
+
+class DeviceConfigPayload(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    name: str
+    device_id: str
+    schedules: list[ScheduleConfigPayload] = Field(default_factory=list)
+
+
+class ServiceConfigPayload(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    api_key: str
+    devices: list[DeviceConfigPayload] = Field(default_factory=list)
 
 
 @app.get("/canvases")
@@ -213,3 +238,35 @@ def restart_daemon():
     except DotDaemonError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return build_daemon_payload(daemon)
+
+
+@app.get("/config")
+def get_service_config():
+    try:
+        config = ServercConfig()
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"config": config.as_dict()}
+
+
+@app.put("/config")
+def update_service_config(payload: ServiceConfigPayload):
+    try:
+        config = ServercConfig()
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    incoming = payload.model_dump(mode="python")
+    merged = config.as_dict()
+    merged["api_key"] = incoming.get("api_key", "")
+    merged["devices"] = incoming.get("devices", [])
+
+    errors = config.update_and_save(merged)
+    if errors:
+        raise HTTPException(status_code=400, detail={"errors": errors})
+
+    return {"config": config.as_dict()}
