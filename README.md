@@ -64,6 +64,20 @@ uvicorn server:app --reload
     - 参数：暂时没有用。
 - 修改配置后需要在进程控制页面重启守护进程。
 
+# 故障排除
+
+## 在 macOS 下出现与 Cairo 相关报错
+尝试安装对应库
+```bash
+brew update
+brew install cairo pango gdk-pixbuf libffi
+
+# 配置环境变量
+export PKG_CONFIG_PATH="/opt/homebrew/lib/pkgconfig:/opt/homebrew/opt/libffi/lib/pkgconfig"
+export DYLD_LIBRARY_PATH="/opt/homebrew/opt/cairo/lib:$DYLD_LIBRARY_PATH"
+
+```
+
 # 开发
 
 请参考[开发指南](CONTRIBUTING.md)
