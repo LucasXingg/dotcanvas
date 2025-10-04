@@ -171,8 +171,9 @@
 
     .preview-floating {
       position: fixed;
-      left: 1.5rem;
+      left: 50%;
       bottom: 1.5rem;
+      transform: translateX(-50%);
       width: min(320px, calc(100vw - 3rem));
       z-index: 900;
     }
@@ -183,8 +184,9 @@
 
     @media (max-width: 640px) {
       .preview-floating {
-        left: 1rem;
+        left: 50%;
         bottom: 1rem;
+        transform: translateX(-50%);
         width: calc(100vw - 2rem);
       }
     }
