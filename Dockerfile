@@ -1,4 +1,11 @@
 # syntax=docker/dockerfile:1
+FROM node:20-alpine AS frontend-build
+WORKDIR /app
+COPY frontend/package*.json ./
+RUN npm install
+COPY frontend .
+RUN npm run build
+
 FROM python:3.12-slim AS base
 
 # Install system dependencies required for cairosvg and friends
@@ -20,7 +27,7 @@ COPY assets ./assets
 COPY canvas ./canvas
 COPY configs ./configs
 COPY docs ./docs
-COPY pages ./pages
+COPY --from=frontend-build /app/dist ./ui
 COPY server.py ./
 COPY src ./src
 

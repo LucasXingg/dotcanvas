@@ -69,6 +69,25 @@ uvicorn server:app --reload
 ```
 运行以上命令后，打开 <http://localhost:8000/> 访问管理界面。
 
+### 构建前端资源
+
+全新的 Web 界面基于 Vite + React 实现，默认监听在 `/ui` 路径下。首次运行前需要安装前端依赖并生成静态资源：
+
+```bash
+cd frontend
+npm install
+npm run build
+```
+
+开发时可以使用 Vite 开发服务器获得热更新体验：
+
+```bash
+npm run dev
+# 默认端口为 5173，可通过 http://localhost:5173/ui 访问
+```
+
+> 提示：仓库内的 `frontend/dist/index.html` 仅用于占位，实际运行请执行 `npm run build` 生成生产环境资源。Docker 镜像构建流程也会在镜像内执行上述命令。
+
 # 自定义你的 Dot.
 
 ## 什么是画布与视图？
