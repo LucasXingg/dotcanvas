@@ -292,7 +292,7 @@ export default function CanvasPage() {
   }
 
   return (
-    <div className="split-layout">
+    <div className="split-layout canvas-page-layout">
       <div className="card-list">
         <div className="section-card">
           {statusMessage ? (
@@ -414,10 +414,14 @@ export default function CanvasPage() {
       </div>
 
       <div className="card-list">
-        <div className="section-card">
+        <div className="section-card live-preview-card">
           <h2 className="section-title">{t('section.livePreview')}</h2>
           <div className="preview-frame">
-            {previewUrl ? <img src={previewUrl} alt={t('alt.preview')} /> : <p className="muted-text">{t('status.selectCanvas')}</p>}
+            {previewUrl ? (
+              <img src={previewUrl} alt={t('alt.preview')} />
+            ) : (
+              <p className="muted-text">{t('status.selectCanvas')}</p>
+            )}
           </div>
         </div>
 

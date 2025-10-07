@@ -1,9 +1,9 @@
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
   font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color: #0f172a;
+  color: #000000;
   background-color: #f8fafc;
 }
 
@@ -15,6 +15,7 @@ body {
   margin: 0;
   min-height: 100vh;
   background: linear-gradient(135deg, rgba(226, 232, 240, 0.6), rgba(241, 245, 249, 0.9));
+  color: #000000;
 }
 
 a {
@@ -256,9 +257,55 @@ code, pre, textarea {
   gap: 1.5rem;
 }
 
+.canvas-page-layout {
+  position: relative;
+  padding-bottom: clamp(16rem, 30vh, 22rem);
+}
+
 @media (max-width: 1024px) {
   .split-layout {
     grid-template-columns: 1fr;
+  }
+}
+
+.live-preview-card {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  width: min(420px, calc(100% - 4rem));
+  max-height: calc(70vh + 4rem);
+  z-index: 40;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.18);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+.live-preview-card .preview-frame {
+  min-height: 0;
+  height: clamp(220px, 45vh, 360px);
+}
+
+@media (max-width: 900px) {
+  .canvas-page-layout {
+    padding-bottom: clamp(18rem, 48vh, 26rem);
+  }
+
+  .live-preview-card {
+    left: 1.5rem;
+    right: 1.5rem;
+    width: auto;
+  }
+}
+
+@media (max-width: 600px) {
+  .canvas-page-layout {
+    padding-bottom: clamp(20rem, 55vh, 28rem);
+  }
+
+  .live-preview-card {
+    left: 1rem;
+    right: 1rem;
+    bottom: 1rem;
   }
 }
 
