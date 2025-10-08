@@ -24,6 +24,7 @@ export default function CanvasPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(false);
+  const [collapsedViews, setCollapsedViews] = useState([]);
 
   useEffect(() => {
     fetchAvailableViews();
@@ -47,6 +48,14 @@ export default function CanvasPage() {
   }, [status, t]);
 
   const viewConfigsById = useMemo(() => new Map(viewConfigs.map((item) => [item.id, item])), [viewConfigs]);
+
+  useEffect(() => {
+    setCollapsedViews((previous) => {
+      const validIds = new Set(views.map((view) => view.id));
+      const filtered = previous.filter((id) => validIds.has(id));
+      return filtered.length === previous.length ? previous : filtered;
+    });
+  }, [views]);
 
   async function fetchAvailableViews() {
     try {
@@ -269,6 +278,12 @@ export default function CanvasPage() {
     return inferred || configType || null;
   }
 
+  function toggleViewCollapse(viewId) {
+    setCollapsedViews((previous) =>
+      previous.includes(viewId) ? previous.filter((id) => id !== viewId) : [...previous, viewId],
+    );
+  }
+
   function handleCopyConfig(viewId) {
     const config = resolveViewConfig(viewId);
     if (!config || !config.config) {
@@ -435,44 +450,65 @@ export default function CanvasPage() {
                 const viewType = resolveViewType(view);
                 const params = (viewType && availableViewMap.get(viewType)) || {};
                 const config = resolveViewConfig(view.id);
+                const sanitizedId = (view.id || 'unnamed').replace(/[^a-zA-Z0-9_-]/g, '-');
+                const editorId = `view-editor-${sanitizedId || 'unnamed'}`;
+                const isCollapsed = collapsedViews.includes(view.id);
                 return (
-                  <div key={view.id} className="view-card">
+                  <div key={view.id} className={clsx('view-card', isCollapsed && 'collapsed')}>
                     <div className="view-card-header">
                       <h3>
                         {view.id || t('view.unnamed')}
                         {viewType ? <span className="muted-text"> · {viewType}</span> : null}
                       </h3>
-                      <button type="button" className="ghost-button" onClick={() => removeView(view.id)}>
-                        {t('button.remove')}
-                      </button>
-                    </div>
-                    <div className="view-editor">
-                      <textarea value={view.code} onChange={(event) => updateViewCode(view.id, event.target.value)} />
-                      <div className="params-panel">
-                        <h4>{viewType ? `${t('label.viewParams')} (${viewType})` : t('label.viewParams')}</h4>
-                        {params && Object.keys(params).length ? (
-                          Object.entries(params).map(([paramKey, description]) => (
-                            <div key={paramKey} className="param-item">
-                              <strong>{paramKey}</strong>
-                              <span>{description}</span>
-                            </div>
-                          ))
-                        ) : (
-                          <p className="muted-text">{t('view.paramsUnavailable')}</p>
-                        )}
-                        <h4>{t('label.viewPreview')}</h4>
-                        {config?.error ? (
-                          <p className="muted-text">{t('view.configError', { message: config.error })}</p>
-                        ) : config?.config ? (
-                          <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{JSON.stringify(config.config, null, 2)}</pre>
-                        ) : (
-                          <p className="muted-text">{t('view.configUnavailable')}</p>
-                        )}
-                        <button type="button" className="secondary-button" onClick={() => handleCopyConfig(view.id)}>
-                          {t('button.copyConfig')}
+                      <div className="view-card-actions">
+                        <button
+                          type="button"
+                          className="ghost-button"
+                          onClick={() => toggleViewCollapse(view.id)}
+                          aria-expanded={!isCollapsed}
+                          aria-controls={editorId}
+                        >
+                          {t(isCollapsed ? 'button.expandView' : 'button.collapseView')}
+                        </button>
+                        <button type="button" className="ghost-button" onClick={() => removeView(view.id)}>
+                          {t('button.remove')}
                         </button>
                       </div>
                     </div>
+                    {isCollapsed ? (
+                      <p className="muted-text view-collapsed-hint">{t('view.collapsedHint')}</p>
+                    ) : (
+                      <div className="view-editor" id={editorId}>
+                        <textarea
+                          value={view.code}
+                          onChange={(event) => updateViewCode(view.id, event.target.value)}
+                        />
+                        <div className="params-panel">
+                          <h4>{viewType ? `${t('label.viewParams')} (${viewType})` : t('label.viewParams')}</h4>
+                          {params && Object.keys(params).length ? (
+                            Object.entries(params).map(([paramKey, description]) => (
+                              <div key={paramKey} className="param-item">
+                                <strong>{paramKey}</strong>
+                                <span>{description}</span>
+                              </div>
+                            ))
+                          ) : (
+                            <p className="muted-text">{t('view.paramsUnavailable')}</p>
+                          )}
+                          <h4>{t('label.viewPreview')}</h4>
+                          {config?.error ? (
+                            <p className="muted-text">{t('view.configError', { message: config.error })}</p>
+                          ) : config?.config ? (
+                            <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{JSON.stringify(config.config, null, 2)}</pre>
+                          ) : (
+                            <p className="muted-text">{t('view.configUnavailable')}</p>
+                          )}
+                          <button type="button" className="secondary-button" onClick={() => handleCopyConfig(view.id)}>
+                            {t('button.copyConfig')}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
