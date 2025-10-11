@@ -32,6 +32,14 @@ class ServercConfig:
     def _normalise_config(self, data: Dict[str, Any]) -> Dict[str, Any]:
         payload: Dict[str, Any] = deepcopy(data)
 
+        disabled = payload.get("disabled", False)
+        if isinstance(disabled, bool):
+            payload["disabled"] = disabled
+        elif isinstance(disabled, str):
+            payload["disabled"] = disabled.strip().lower() in {"true", "1", "yes", "on"}
+        else:
+            payload["disabled"] = bool(disabled)
+
         api_key = payload.get("api_key", "")
         payload["api_key"] = api_key if isinstance(api_key, str) else str(api_key)
 
@@ -66,6 +74,13 @@ class ServercConfig:
                         params = schedule_copy.get("params")
                         if not isinstance(params, dict):
                             schedule_copy["params"] = {}
+                        disabled = schedule_copy.get("disabled", False)
+                        if isinstance(disabled, bool):
+                            schedule_copy["disabled"] = disabled
+                        elif isinstance(disabled, str):
+                            schedule_copy["disabled"] = disabled.strip().lower() in {"true", "1", "yes", "on"}
+                        else:
+                            schedule_copy["disabled"] = bool(disabled)
                         normalised_schedules.append(schedule_copy)
                 device_copy["schedules"] = normalised_schedules
                 normalised_devices.append(device_copy)

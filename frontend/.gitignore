@@ -1,0 +1,5 @@
+dist
+!dist/README.txt
+!dist/index.html
+!dist/assets/.gitkeep
+node_modules

@@ -1,9 +1,10 @@
 import logging
+from pathlib import Path
 from io import BytesIO
 from typing import Any, List
 
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import RedirectResponse, StreamingResponse
+from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -25,12 +26,46 @@ from src.service_config import ServercConfig
 
 
 app = FastAPI()
-app.mount("/ui", StaticFiles(directory="pages", html=True), name="pages")
+
+FRONTEND_DIST = Path(__file__).resolve().parent / "frontend" / "dist"
+FRONTEND_ASSETS = FRONTEND_DIST / "assets"
+
+if FRONTEND_ASSETS.exists():
+    app.mount("/ui/assets", StaticFiles(directory=str(FRONTEND_ASSETS)), name="ui-assets")
+else:
+    logging.getLogger("dot.server").warning(
+        "Frontend assets directory %s is missing. Run `npm run build` in the frontend folder.",
+        FRONTEND_ASSETS,
+    )
+
+
+def frontend_index() -> FileResponse:
+    index_path = FRONTEND_DIST / "index.html"
+    if not index_path.exists():
+        raise HTTPException(status_code=503, detail="Frontend build is missing. Run npm run build in frontend/.")
+    return FileResponse(index_path)
 
 
 @app.get("/", include_in_schema=False)
 def root():
-    return RedirectResponse(url="/ui/daemon.html")
+    return RedirectResponse(url="/ui/daemon")
+
+
+@app.get("/ui", include_in_schema=False)
+def ui_root():
+    return frontend_index()
+
+
+@app.get("/ui/{full_path:path}", include_in_schema=False)
+def ui_fallback(full_path: str):  # noqa: ARG001 - route param for matching
+    candidate = (FRONTEND_DIST / full_path).resolve()
+    try:
+        candidate.relative_to(FRONTEND_DIST)
+    except ValueError as exc:  # path traversal attempt
+        raise HTTPException(status_code=404, detail="Not found") from exc
+    if candidate.exists() and candidate.is_file():
+        return FileResponse(candidate)
+    return frontend_index()
 
 # config loggers
 dot_logger = logging.getLogger("dot")
@@ -107,6 +142,7 @@ class ScheduleConfigPayload(BaseModel):
     canvas_id: str
     cron: str
     params: dict[str, Any] = Field(default_factory=dict)
+    disabled: bool = False
 
 
 class DeviceConfigPayload(BaseModel):
@@ -121,6 +157,7 @@ class ServiceConfigPayload(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     api_key: str
+    disabled: bool = False
     devices: list[DeviceConfigPayload] = Field(default_factory=list)
 
 
@@ -268,6 +305,7 @@ def update_service_config(payload: ServiceConfigPayload):
     incoming = payload.model_dump(mode="python")
     merged = config.as_dict()
     merged["api_key"] = incoming.get("api_key", "")
+    merged["disabled"] = incoming.get("disabled", merged.get("disabled", False))
     merged["devices"] = incoming.get("devices", [])
 
     errors = config.update_and_save(merged)
