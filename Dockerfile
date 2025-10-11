@@ -27,7 +27,7 @@ COPY assets ./assets
 COPY canvas ./canvas
 COPY configs ./configs
 COPY docs ./docs
-COPY --from=frontend-build /app/dist ./ui
+COPY --from=frontend-build /app/dist ./frontend/dist
 COPY server.py ./
 COPY src ./src
 
