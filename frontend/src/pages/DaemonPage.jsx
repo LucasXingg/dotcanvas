@@ -130,15 +130,19 @@ export default function DaemonPage() {
         const entries = Array.isArray(data.logs) ? data.logs : [];
         if (entries.length) {
           setLogs((current) => {
-            const seen = new Set(current.map((item) => item.id));
+            const seen = new Set(current.map((i) => i.id));
             const merged = initial ? [] : current.slice();
+            let added = false;
+
             entries.forEach((entry) => {
               if (!seen.has(entry.id)) {
                 merged.push(entry);
                 seen.add(entry.id);
+                added = true;
               }
             });
-            return merged;
+            
+            return added ? merged : current;
           });
           setLogCursor(entries[entries.length - 1].id);
         } else if (initial) {

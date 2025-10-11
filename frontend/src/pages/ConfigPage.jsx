@@ -9,11 +9,22 @@ function createSchedule(uid) {
     canvas_id: '',
     cron: '',
     paramsText: '{}',
+    disabled: false,
   };
 }
 
+function toBoolean(value) {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'string') {
+    return value.toLowerCase() === 'true';
+  }
+  return false;
+}
+
 function normalizeConfig(raw, uidGenerator) {
-  const config = { api_key: '', devices: [] };
+  const config = { api_key: '', devices: [], disabled: false };
   if (raw && typeof raw === 'object') {
     config.api_key = typeof raw.api_key === 'string' ? raw.api_key : '';
     if (Array.isArray(raw.devices)) {
@@ -31,17 +42,19 @@ function normalizeConfig(raw, uidGenerator) {
                 const params = schedule.params && typeof schedule.params === 'object' && !Array.isArray(schedule.params)
                   ? schedule.params
                   : {};
-                return {
-                  _uid: uidGenerator(),
-                  name: typeof schedule.name === 'string' ? schedule.name : '',
-                  canvas_id: typeof schedule.canvas_id === 'string' ? schedule.canvas_id : '',
-                  cron: typeof schedule.cron === 'string' ? schedule.cron : '',
-                  paramsText: JSON.stringify(params, null, 2),
-                };
-              }),
+          return {
+            _uid: uidGenerator(),
+            name: typeof schedule.name === 'string' ? schedule.name : '',
+            canvas_id: typeof schedule.canvas_id === 'string' ? schedule.canvas_id : '',
+            cron: typeof schedule.cron === 'string' ? schedule.cron : '',
+            paramsText: JSON.stringify(params, null, 2),
+            disabled: toBoolean(schedule.disabled),
           };
-        });
+        }),
+      };
+    });
     }
+    config.disabled = toBoolean(raw.disabled);
   }
   return config;
 }
@@ -49,7 +62,7 @@ function normalizeConfig(raw, uidGenerator) {
 export default function ConfigPage() {
   const { t } = useTranslation();
   const uidRef = useRef(1);
-  const [config, setConfig] = useState({ api_key: '', devices: [] });
+  const [config, setConfig] = useState({ api_key: '', devices: [], disabled: false });
   const [status, setStatus] = useState({ key: 'config.status.loading', type: 'info', params: {}, raw: null });
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -83,7 +96,12 @@ export default function ConfigPage() {
       const normalized = normalizeConfig(data.config, nextUid);
       setConfig(normalized);
       setInvalidScheduleIds(new Set());
-      setStatus({ key: 'config.status.loaded', params: {}, type: 'success', raw: null });
+      setStatus({
+        key: normalized.disabled ? 'config.status.tasksDisabled' : 'config.status.loaded',
+        params: {},
+        type: normalized.disabled ? 'info' : 'success',
+        raw: null,
+      });
     } catch (error) {
       console.error('Failed to load config', error);
       setStatus({ key: 'config.status.loadError', params: { message: error.message }, type: 'error', raw: null });
@@ -135,6 +153,19 @@ export default function ConfigPage() {
     }));
   }, [nextUid]);
 
+  const toggleGlobalDisabled = useCallback(() => {
+    setConfig((current) => {
+      const nextDisabled = !current.disabled;
+      setStatus({
+        key: nextDisabled ? 'config.status.tasksDisabled' : 'config.status.tasksEnabled',
+        params: {},
+        type: nextDisabled ? 'info' : 'success',
+        raw: null,
+      });
+      return { ...current, disabled: nextDisabled };
+    });
+  }, [setStatus]);
+
   const removeDevice = useCallback(
     (uid) => {
       if (window.confirm(t('confirm.deleteDevice'))) {
@@ -164,6 +195,23 @@ export default function ConfigPage() {
     },
     [nextUid],
   );
+
+  const toggleScheduleDisabled = useCallback((deviceUid, scheduleUid) => {
+    setConfig((current) => ({
+      ...current,
+      devices: current.devices.map((device) => {
+        if (device._uid !== deviceUid) {
+          return device;
+        }
+        return {
+          ...device,
+          schedules: device.schedules.map((schedule) =>
+            schedule._uid === scheduleUid ? { ...schedule, disabled: !schedule.disabled } : schedule,
+          ),
+        };
+      }),
+    }));
+  }, []);
 
   const removeSchedule = useCallback(
     (deviceUid, scheduleUid) => {
@@ -210,6 +258,7 @@ export default function ConfigPage() {
     const invalid = new Set();
     const payload = {
       api_key: config.api_key,
+      disabled: Boolean(config.disabled),
       devices: config.devices.map((device) => ({
         name: device.name,
         device_id: device.device_id,
@@ -221,6 +270,7 @@ export default function ConfigPage() {
               canvas_id: schedule.canvas_id,
               cron: schedule.cron,
               params,
+              disabled: Boolean(schedule.disabled),
             };
           } catch (error) {
             invalid.add(schedule._uid);
@@ -259,6 +309,20 @@ export default function ConfigPage() {
     }
   }, [config, nextUid, t]);
 
+  useEffect(() => {
+    function handleSaveShortcut(event) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
+        event.preventDefault();
+        if (!saving) {
+          saveConfig();
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleSaveShortcut);
+    return () => window.removeEventListener('keydown', handleSaveShortcut);
+  }, [saveConfig, saving]);
+
   return (
     <div className="card-list">
       <div className="section-card">
@@ -267,6 +331,15 @@ export default function ConfigPage() {
           <div className="inline-actions">
             <button type="button" className="secondary-button" onClick={fetchConfig} disabled={loading}>
               {t('button.reload')}
+            </button>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={toggleGlobalDisabled}
+              disabled={loading || saving}
+              aria-pressed={config.disabled}
+            >
+              {t(config.disabled ? 'config.action.enableTasks' : 'config.action.disableTasks')}
             </button>
             <button type="button" className="primary-button" onClick={saveConfig} disabled={saving}>
               {t('button.save')}
@@ -387,6 +460,17 @@ export default function ConfigPage() {
                                 }
                                 placeholder={t('placeholder.scheduleCron')}
                               />
+                            </div>
+                            <div className="input-field checkbox-field">
+                              <label className="checkbox-label">
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(schedule.disabled)}
+                                  onChange={() => toggleScheduleDisabled(device._uid, schedule._uid)}
+                                />
+                                {t('config.label.scheduleDisabled')}
+                              </label>
+                              <p className="muted-text">{t('config.hint.scheduleDisabled')}</p>
                             </div>
                           </div>
                           <div className="input-field">

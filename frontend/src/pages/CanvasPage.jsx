@@ -51,9 +51,14 @@ export default function CanvasPage() {
 
   useEffect(() => {
     setCollapsedViews((previous) => {
-      const validIds = new Set(views.map((view) => view.id));
+      const viewIds = views.map((view) => view.id);
+      const validIds = new Set(viewIds);
       const filtered = previous.filter((id) => validIds.has(id));
-      return filtered.length === previous.length ? previous : filtered;
+      const missing = viewIds.filter((id) => !filtered.includes(id));
+      if (!missing.length && filtered.length === previous.length) {
+        return previous;
+      }
+      return [...filtered, ...missing];
     });
   }, [views]);
 
@@ -255,6 +260,20 @@ export default function CanvasPage() {
       setLoadingPreview(false);
     }
   }
+
+  useEffect(() => {
+    function handleSaveShortcut(event) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
+        event.preventDefault();
+        if (!saving) {
+          saveCanvas();
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleSaveShortcut);
+    return () => window.removeEventListener('keydown', handleSaveShortcut);
+  }, [saving, saveCanvas]);
 
   function inferViewTypeFromCode(code) {
     if (typeof code !== 'string') {

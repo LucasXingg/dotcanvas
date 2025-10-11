@@ -142,6 +142,7 @@ class ScheduleConfigPayload(BaseModel):
     canvas_id: str
     cron: str
     params: dict[str, Any] = Field(default_factory=dict)
+    disabled: bool = False
 
 
 class DeviceConfigPayload(BaseModel):
@@ -156,6 +157,7 @@ class ServiceConfigPayload(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     api_key: str
+    disabled: bool = False
     devices: list[DeviceConfigPayload] = Field(default_factory=list)
 
 
@@ -303,6 +305,7 @@ def update_service_config(payload: ServiceConfigPayload):
     incoming = payload.model_dump(mode="python")
     merged = config.as_dict()
     merged["api_key"] = incoming.get("api_key", "")
+    merged["disabled"] = incoming.get("disabled", merged.get("disabled", False))
     merged["devices"] = incoming.get("devices", [])
 
     errors = config.update_and_save(merged)

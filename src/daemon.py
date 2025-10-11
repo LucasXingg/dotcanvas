@@ -75,10 +75,20 @@ class DotDaemon:
         if not self.config.validate():
             raise DotDaemonError("Invalid configuration")
         
-    def load_tasks(self) -> None:
+    def load_tasks(self) -> bool:
         self.scheduler = BackgroundScheduler()
+        if self.config.cfg.get("disabled"):
+            logger.info("Task scheduling disabled via config; skipping job registration.")
+            return False
         for device, _, schedule in self.config.iter_device_schedules():
             try:
+                if schedule.get("disabled"):
+                    logger.info(
+                        "Skipping disabled schedule '%s' for device '%s'",
+                        schedule.get("name", "<unknown>"),
+                        device.get("name", device.get("device_id", "<unknown>")),
+                    )
+                    continue
                 task = ScheduledTask(
                     task_name=schedule["name"],
                     device_name=device["name"],
@@ -96,18 +106,23 @@ class DotDaemon:
                     id=f"{device['device_id']}_{task.task_name}",
                     replace_existing=True,
                 )
-                
+
             except Exception as exc:
                 logger.warning(f"Failed to load schedule for device {device.get('name', 'unknown')}: {exc}")
+        return True
 
     def start(self) -> None:
         # If scheduler was shut down, create a new one
         if not self.scheduler.running:
-            self.load_tasks()
+            tasks_loaded = self.load_tasks()
 
-            self.scheduler.start()
-            self.is_running = True
-            logger.info("Scheduler started")
+            if tasks_loaded:
+                self.scheduler.start()
+                self.is_running = True
+                logger.info("Scheduler started")
+            else:
+                self.is_running = False
+                logger.info("Scheduler not started because tasks are disabled in the config")
         else:
             logger.info("Scheduler already running")
 

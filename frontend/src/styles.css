@@ -284,7 +284,8 @@ code, pre, textarea {
 .live-preview-card {
   position: fixed;
   bottom: 2rem;
-  right: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
   width: min(420px, calc(100% - 4rem));
   max-height: calc(70vh + 4rem);
   z-index: 40;
@@ -294,20 +295,13 @@ code, pre, textarea {
   background: var(--color-surface-strong);
 }
 
-.live-preview-card .preview-frame {
-  min-height: 0;
-  height: clamp(220px, 45vh, 360px);
-}
-
 @media (max-width: 900px) {
   .canvas-page-layout {
     padding-bottom: clamp(18rem, 48vh, 26rem);
   }
 
   .live-preview-card {
-    left: 1.5rem;
-    right: 1.5rem;
-    width: auto;
+    width: calc(100% - 3rem);
   }
 }
 
@@ -317,8 +311,7 @@ code, pre, textarea {
   }
 
   .live-preview-card {
-    left: 1rem;
-    right: 1rem;
+    width: calc(100% - 2rem);
     bottom: 1rem;
   }
 }
@@ -425,7 +418,7 @@ code, pre, textarea {
 
 .preview-frame {
   width: 100%;
-  min-height: 320px;
+  aspect-ratio: 37 / 19;
   border-radius: 18px;
   border: 1px solid var(--color-border);
   background: linear-gradient(135deg, rgba(217, 221, 228, 0.85), rgba(235, 237, 241, 0.95));
@@ -436,8 +429,9 @@ code, pre, textarea {
 }
 
 .preview-frame img {
-  max-width: 100%;
-  height: auto;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
   display: block;
 }
 
@@ -445,6 +439,22 @@ code, pre, textarea {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
+}
+
+.checkbox-field {
+  gap: 0.3rem;
+}
+
+.checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+}
+
+.checkbox-label input {
+  width: 1rem;
+  height: 1rem;
 }
 
 .device-card {
