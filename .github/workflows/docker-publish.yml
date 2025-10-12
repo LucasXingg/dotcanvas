@@ -1,16 +1,17 @@
-name: Build and Push Docker Image to GHCR
+name: Build and Push Docker Image
 
 on:
   push:
     branches:
-      - main  # triggers when main branch is updated (e.g. merge from dev)
+      - main  # Trigger only when main is updated (e.g., after a merge)
 
 jobs:
-  build-and-push:
+  build:
     runs-on: ubuntu-latest
+
     permissions:
       contents: read
-      packages: write  # allows publishing to GHCR
+      packages: write  # Required for pushing to GHCR
 
     steps:
       - name: Checkout repository
@@ -26,11 +27,20 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
+      - name: Prepare lowercase repository name
+        id: vars
+        run: |
+          # Lowercase the full repository name (GHCR requires lowercase)
+          REPO_LC="${GITHUB_REPOSITORY,,}"
+          echo "repo=$REPO_LC" >> $GITHUB_OUTPUT
+
+      - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}:latest
-            ghcr.io/${{ github.repository }}:${{ github.sha }}
+            ghcr.io/${{ steps.vars.outputs.repo }}:latest
+            ghcr.io/${{ steps.vars.outputs.repo }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
