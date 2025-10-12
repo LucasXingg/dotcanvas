@@ -173,7 +173,7 @@ class DotDaemon:
             canvas_class = getattr(module, "Canvas", None)
             render_callable = getattr(canvas_class, "render")
 
-            image = render_callable()
+            image = render_callable(params=task.params)
 
             if image is None:
                 raise ValueError(f"Canvas '{task.canvas_id}' returned no image")

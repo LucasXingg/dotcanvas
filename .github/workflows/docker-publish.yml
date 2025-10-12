@@ -30,7 +30,6 @@ jobs:
       - name: Prepare lowercase repository name
         id: vars
         run: |
-          # Lowercase the full repository name (GHCR requires lowercase)
           REPO_LC="${GITHUB_REPOSITORY,,}"
           echo "repo=$REPO_LC" >> $GITHUB_OUTPUT
 
@@ -39,6 +38,7 @@ jobs:
         with:
           context: .
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: |
             ghcr.io/${{ steps.vars.outputs.repo }}:latest
             ghcr.io/${{ steps.vars.outputs.repo }}:${{ github.sha }}

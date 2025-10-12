@@ -272,7 +272,7 @@ code, pre, textarea {
 
 .canvas-page-layout {
   position: relative;
-  padding-bottom: clamp(16rem, 30vh, 22rem);
+  padding-bottom: clamp(20rem, 40vh, 28rem);
 }
 
 @media (max-width: 1024px) {
@@ -281,38 +281,65 @@ code, pre, textarea {
   }
 }
 
-.live-preview-card {
+
+.floating-preview-wrapper {
   position: fixed;
   bottom: 2rem;
   left: 50%;
   transform: translateX(-50%);
-  width: min(420px, calc(100% - 4rem));
-  max-height: calc(70vh + 4rem);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(320px, 1fr));
+  align-items: stretch;
+  gap: 1rem;
+  width: min(900px, calc(100% - 4rem));
   z-index: 40;
+}
+
+.floating-preview-wrapper .section-card {
   box-shadow: var(--shadow-floating);
   backdrop-filter: blur(20px);
   border: 1px solid var(--color-border);
   background: var(--color-surface-strong);
+  height: 100%;
+}
+
+.live-preview-card {
+  max-height: calc(70vh + 4rem);
+  display: flex;
+  flex-direction: column;
+}
+
+.preview-params-card {
+  gap: 1rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.preview-params-card textarea {
+  min-height: 180px;
+  resize: none;
 }
 
 @media (max-width: 900px) {
   .canvas-page-layout {
-    padding-bottom: clamp(18rem, 48vh, 26rem);
+    padding-bottom: clamp(24rem, 60vh, 34rem);
   }
 
-  .live-preview-card {
+  .floating-preview-wrapper {
     width: calc(100% - 3rem);
+    grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 600px) {
   .canvas-page-layout {
-    padding-bottom: clamp(20rem, 55vh, 28rem);
+    padding-bottom: clamp(26rem, 72vh, 36rem);
   }
 
-  .live-preview-card {
+  .floating-preview-wrapper {
     width: calc(100% - 2rem);
     bottom: 1rem;
+    grid-template-columns: 1fr;
   }
 }
 

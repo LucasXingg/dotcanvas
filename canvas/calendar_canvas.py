@@ -17,11 +17,11 @@ class Canvas(_BaseCanvas):
     ID = "calendar_canvas"
 
     @classmethod
-    def render(cls) -> Image.Image:
-        return cls._render(CONFIG)
+    def render(cls, params: dict | None = None) -> Image.Image:
+        return cls._render(CONFIG, params=params)
 
     @staticmethod
-    def event_text() -> dict:
+    def event_text(params: dict | None = None) -> dict:
         from caldav import DAVClient
         from icalendar import Calendar
         from datetime import datetime, timedelta, timezone
@@ -97,7 +97,7 @@ class Canvas(_BaseCanvas):
 
 
     @staticmethod
-    def Weather_view() -> dict:
+    def Weather_view(params: dict | None = None) -> dict:
         import requests
 
         url = "https://api.open-meteo.com/v1/forecast"
@@ -127,7 +127,7 @@ class Canvas(_BaseCanvas):
 
 
     @staticmethod
-    def date_view() -> dict:
+    def date_view(params: dict | None = None) -> dict:
         from datetime import datetime
 
         # Current date
@@ -155,7 +155,7 @@ class Canvas(_BaseCanvas):
 
 
     @staticmethod
-    def icon_view() -> dict:
+    def icon_view(params: dict | None = None) -> dict:
         import random
 
         LUCIDE_ICONS_SCHOOL = [

@@ -18,8 +18,8 @@ class Canvas(_BaseCanvas):
     ID = "new_canvas"
 
     @classmethod
-    def render(cls) -> Image.Image:
-        return cls._render(CONFIG)
+    def render(cls, params: dict | None = None) -> Image.Image:
+        return cls._render(CONFIG, params=params)
 
     # Add view builder functions here. For example:
     # @staticmethod

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { useTranslation } from '../i18n/LanguageContext.jsx';
 import { useToast } from '../components/ToastProvider.jsx';
@@ -25,6 +25,9 @@ export default function CanvasPage() {
   const [saving, setSaving] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [collapsedViews, setCollapsedViews] = useState([]);
+  const [previewParamsText, setPreviewParamsText] = useState('{}');
+  const [previewParamsError, setPreviewParamsError] = useState(null);
+  const previousViewIdsRef = useRef(new Set());
 
   useEffect(() => {
     fetchAvailableViews();
@@ -50,11 +53,14 @@ export default function CanvasPage() {
   const viewConfigsById = useMemo(() => new Map(viewConfigs.map((item) => [item.id, item])), [viewConfigs]);
 
   useEffect(() => {
+    const viewIds = views.map((view) => view.id);
+    const validIds = new Set(viewIds);
+    const previousViewIds = previousViewIdsRef.current;
+    previousViewIdsRef.current = validIds;
+
     setCollapsedViews((previous) => {
-      const viewIds = views.map((view) => view.id);
-      const validIds = new Set(viewIds);
       const filtered = previous.filter((id) => validIds.has(id));
-      const missing = viewIds.filter((id) => !filtered.includes(id));
+      const missing = viewIds.filter((id) => !previousViewIds.has(id));
       if (!missing.length && filtered.length === previous.length) {
         return previous;
       }
@@ -124,12 +130,17 @@ export default function CanvasPage() {
       if (!response.ok) {
         throw new Error(data.detail || response.statusText || 'Failed to load canvas');
       }
+      const isSameCanvas = data.id === selectedCanvasId;
       setSelectedCanvasId(data.id);
       setCanvasName(data.name || '');
       setCanvasIdentifier(data.id || '');
       setViews(Array.isArray(data.views) ? data.views.map((view) => ({ ...view })) : []);
       setViewConfigs(Array.isArray(data.view_configs) ? data.view_configs : []);
       setPreviewUrl(`/canvases/${data.id}/preview?ts=${Date.now()}`);
+      if (!isSameCanvas) {
+        setPreviewParamsText('{}');
+      }
+      setPreviewParamsError(null);
       if (!silent) {
         setStatus({ key: 'status.canvasLoaded', params: { name: data.name || data.id }, type: 'success', raw: null });
       }
@@ -239,19 +250,73 @@ export default function CanvasPage() {
     setStatus({ key: 'status.addViewSuccess', params: { id: trimmedId }, type: 'success', raw: null });
   }
 
+  function parsePreviewParams() {
+    const trimmed = previewParamsText.trim();
+    if (!trimmed) {
+      return {};
+    }
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error(t('status.previewParamsInvalid'));
+      }
+      return parsed;
+    } catch (error) {
+      if (error instanceof Error && error.message) {
+        throw error;
+      }
+      throw new Error(t('status.previewParamsInvalid'));
+    }
+  }
+
+  async function fetchViewConfigsWithParams(canvasId, paramsObject) {
+    if (!canvasId) {
+      return;
+    }
+    const query = new URLSearchParams();
+    if (paramsObject && Object.keys(paramsObject).length) {
+      query.set('params', JSON.stringify(paramsObject));
+    }
+    const endpoint = query.toString()
+      ? `/canvases/${canvasId}/view-configs?${query.toString()}`
+      : `/canvases/${canvasId}/view-configs`;
+    const response = await fetch(endpoint, { method: 'GET' });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.detail || response.statusText || 'Failed to load view configs');
+    }
+    setViewConfigs(Array.isArray(data.view_configs) ? data.view_configs : []);
+  }
+
   async function refreshPreview(idOverride) {
     const id = idOverride || selectedCanvasId;
     if (!id) {
       return;
     }
+    let paramsObject;
+    try {
+      paramsObject = parsePreviewParams();
+      setPreviewParamsError(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t('status.previewParamsInvalid');
+      setPreviewParamsError(message);
+      setStatus({ key: null, params: {}, type: 'error', raw: message });
+      return;
+    }
     setLoadingPreview(true);
     try {
-      const response = await fetch(`/canvases/${id}/preview`, { method: 'GET' });
+      const query = new URLSearchParams({ ts: String(Date.now()) });
+      if (paramsObject && Object.keys(paramsObject).length) {
+        query.set('params', JSON.stringify(paramsObject));
+      }
+      const previewEndpoint = `/canvases/${id}/preview?${query.toString()}`;
+      const response = await fetch(previewEndpoint, { method: 'GET' });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
         throw new Error(payload.detail || response.statusText || 'Preview failed');
       }
-      setPreviewUrl(`/canvases/${id}/preview?ts=${Date.now()}`);
+      setPreviewUrl(previewEndpoint);
+      await fetchViewConfigsWithParams(id, paramsObject);
       setStatus({ key: 'status.previewReady', params: {}, type: 'success', raw: null });
     } catch (error) {
       console.error('Failed to refresh preview', error);
@@ -448,17 +513,6 @@ export default function CanvasPage() {
       </div>
 
       <div className="card-list">
-        <div className="section-card live-preview-card">
-          <h2 className="section-title">{t('section.livePreview')}</h2>
-          <div className="preview-frame">
-            {previewUrl ? (
-              <img src={previewUrl} alt={t('alt.preview')} />
-            ) : (
-              <p className="muted-text">{t('status.selectCanvas')}</p>
-            )}
-          </div>
-        </div>
-
         <div className="section-card">
           <h2 className="section-title">{t('section.views')}</h2>
           {views.length === 0 ? (
@@ -533,6 +587,37 @@ export default function CanvasPage() {
               })}
             </div>
           )}
+        </div>
+      </div>
+
+      <div className="floating-preview-wrapper">
+        <div className="section-card live-preview-card">
+          <h2 className="section-title">{t('section.livePreview')}</h2>
+          <div className="preview-frame">
+            {previewUrl ? (
+              <img src={previewUrl} alt={t('alt.preview')} />
+            ) : (
+              <p className="muted-text">{t('status.selectCanvas')}</p>
+            )}
+          </div>
+        </div>
+        <div className="section-card preview-params-card">
+          <h2 className="section-title">{t('label.previewParams')}</h2>
+          <div className="input-field">
+            <textarea
+              id="preview-params"
+              className={clsx(previewParamsError && 'field-error')}
+              value={previewParamsText}
+              onChange={(event) => {
+                setPreviewParamsText(event.target.value);
+                if (previewParamsError) {
+                  setPreviewParamsError(null);
+                }
+              }}
+              placeholder={t('placeholder.previewParams')}
+            />
+          </div>
+          {previewParamsError ? <p className="muted-text">{previewParamsError}</p> : null}
         </div>
       </div>
     </div>

@@ -16,17 +16,13 @@ DotCanvas 是一个轻量级的可视化Dot.编辑工具。
 ## Docker 部署
 
 我们已在 GitHub Container Registry 发布预构建镜像 `ghcr.io/lucasxingg/dotcanvas`，可以直接拉取并运行。
-部署步骤与本地启动流程保持一致：先准备配置文件，再启动服务。
 
 ```bash
 # 拉取镜像
 docker pull ghcr.io/lucasxingg/dotcanvas:latest
 
 # 运行容器，映射端口并挂载配置目录
-docker run -d \
-  -p 8000:8000 \
-  -v $(pwd)/canvas:/app/canvas \
-  ghcr.io/lucasxingg/dotcanvas:latest
+docker run -d -p 8000:8000 ghcr.io/lucasxingg/dotcanvas:latest
 ```
 
 容器启动后，通过 <http://localhost:8000/> 访问管理界面。

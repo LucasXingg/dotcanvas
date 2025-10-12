@@ -1,3 +1,4 @@
+import json
 import logging
 from pathlib import Path
 from io import BytesIO
@@ -161,19 +162,32 @@ class ServiceConfigPayload(BaseModel):
     devices: list[DeviceConfigPayload] = Field(default_factory=list)
 
 
+def _parse_params_json(payload: str | None) -> dict[str, Any]:
+    if not payload:
+        return {}
+    try:
+        data = json.loads(payload)
+    except json.JSONDecodeError as exc:  # pragma: no cover - input validation
+        raise HTTPException(status_code=400, detail=f"Invalid params JSON: {exc.msg}") from exc
+    if not isinstance(data, dict):
+        raise HTTPException(status_code=400, detail="params must be a JSON object")
+    return data
+
+
 @app.get("/canvases")
 def get_canvases():
     return {"canvases": list_canvases()}
 
 
 @app.get("/canvases/{canvas_id}")
-def get_canvas(canvas_id: str):
+def get_canvas(canvas_id: str, params: str | None = Query(default=None)):
     try:
         definition = load_canvas(canvas_id)
     except CanvasNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    view_configs = load_view_configs(canvas_id)
+    params_dict = _parse_params_json(params)
+    view_configs = load_view_configs(canvas_id, params=params_dict)
     return {
         "id": definition.canvas_id,
         "name": definition.name,
@@ -196,7 +210,7 @@ def create_canvas_endpoint(payload: CanvasCreatePayload):
 
 
 @app.put("/canvases/{canvas_id}")
-def update_canvas(canvas_id: str, payload: CanvasUpdatePayload):
+def update_canvas(canvas_id: str, payload: CanvasUpdatePayload, params: str | None = Query(default=None)):
     try:
         updated = save_canvas(
             canvas_id,
@@ -209,7 +223,8 @@ def update_canvas(canvas_id: str, payload: CanvasUpdatePayload):
     except CanvasManagerError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    view_configs = load_view_configs(updated.canvas_id)
+    params_dict = _parse_params_json(params)
+    view_configs = load_view_configs(updated.canvas_id, params=params_dict)
     return {
         "id": updated.canvas_id,
         "name": updated.name,
@@ -218,10 +233,22 @@ def update_canvas(canvas_id: str, payload: CanvasUpdatePayload):
     }
 
 
-@app.get("/canvases/{canvas_id}/preview")
-def preview_canvas(canvas_id: str):
+@app.get("/canvases/{canvas_id}/view-configs")
+def get_canvas_view_configs(canvas_id: str, params: str | None = Query(default=None)):
     try:
-        image = render_canvas(canvas_id)
+        configs = load_view_configs(canvas_id, params=_parse_params_json(params))
+    except CanvasNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except CanvasManagerError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return {"view_configs": configs}
+
+
+@app.get("/canvases/{canvas_id}/preview")
+def preview_canvas(canvas_id: str, params: str | None = Query(default=None)):
+    try:
+        image = render_canvas(canvas_id, params=_parse_params_json(params))
     except CanvasNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except CanvasManagerError as exc:
