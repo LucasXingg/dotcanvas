@@ -1,10 +1,11 @@
 import json
 import logging
-from pathlib import Path
+import os
 from io import BytesIO
+from pathlib import Path
 from typing import Any, List
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, status
 from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
@@ -24,6 +25,7 @@ from canvas.canvas_manager import (
 from src.daemon import DotDaemon, DotDaemonError
 from src.log_buffer import get_logs, log_buffer_handler
 from src.service_config import ServercConfig
+from src.token_store import TokenStore, TokenStoreError
 
 
 app = FastAPI()
@@ -31,16 +33,23 @@ app = FastAPI()
 FRONTEND_DIST = Path(__file__).resolve().parent / "frontend" / "dist"
 FRONTEND_ASSETS = FRONTEND_DIST / "assets"
 
-if FRONTEND_ASSETS.exists():
-    app.mount("/ui/assets", StaticFiles(directory=str(FRONTEND_ASSETS)), name="ui-assets")
+NO_BROWSER_MODE = os.getenv("DOTCANVAS_NO_BROWSER", "").strip().lower() in {"1", "true", "yes", "on"}
+
+if not NO_BROWSER_MODE:
+    if FRONTEND_ASSETS.exists():
+        app.mount("/ui/assets", StaticFiles(directory=str(FRONTEND_ASSETS)), name="ui-assets")
+    else:
+        logging.getLogger("dot.server").warning(
+            "Frontend assets directory %s is missing. Run `npm run build` in the frontend folder.",
+            FRONTEND_ASSETS,
+        )
 else:
-    logging.getLogger("dot.server").warning(
-        "Frontend assets directory %s is missing. Run `npm run build` in the frontend folder.",
-        FRONTEND_ASSETS,
-    )
+    logging.getLogger("dot.server").info("Running in no-browser mode; frontend routes are disabled.")
 
 
 def frontend_index() -> FileResponse:
+    if NO_BROWSER_MODE:
+        raise HTTPException(status_code=404, detail="Frontend is disabled in no-browser mode")
     index_path = FRONTEND_DIST / "index.html"
     if not index_path.exists():
         raise HTTPException(status_code=503, detail="Frontend build is missing. Run npm run build in frontend/.")
@@ -49,16 +58,22 @@ def frontend_index() -> FileResponse:
 
 @app.get("/", include_in_schema=False)
 def root():
+    if NO_BROWSER_MODE:
+        return {"message": "DotCanvas API is running in no-browser mode.", "documentation": "/docs"}
     return RedirectResponse(url="/ui/daemon")
 
 
 @app.get("/ui", include_in_schema=False)
 def ui_root():
+    if NO_BROWSER_MODE:
+        raise HTTPException(status_code=404, detail="Frontend is disabled in no-browser mode")
     return frontend_index()
 
 
 @app.get("/ui/{full_path:path}", include_in_schema=False)
 def ui_fallback(full_path: str):  # noqa: ARG001 - route param for matching
+    if NO_BROWSER_MODE:
+        raise HTTPException(status_code=404, detail="Frontend is disabled in no-browser mode")
     candidate = (FRONTEND_DIST / full_path).resolve()
     try:
         candidate.relative_to(FRONTEND_DIST)
@@ -76,6 +91,12 @@ if log_buffer_handler not in dot_logger.handlers:
 dot_logger.setLevel(logging.INFO)
 
 logger = logging.getLogger("dot.server")
+
+try:
+    token_store = TokenStore()
+except TokenStoreError as exc:  # pragma: no cover - startup validation
+    logger.error("Failed to load API token store: %s", exc)
+    token_store = None
 
 daemon_boot_error: str | None = None
 
@@ -120,6 +141,36 @@ def build_daemon_payload(daemon: DotDaemon | None) -> dict[str, Any]:
     return status
 
 
+def get_token_store_or_503() -> TokenStore:
+    if token_store is None:
+        raise HTTPException(status_code=503, detail="Token store is unavailable")
+    return token_store
+
+
+def require_bearer_token(authorization: str = Header(default="")) -> str:
+    store = get_token_store_or_503()
+    if not authorization:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing Authorization header",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    scheme, _, credentials = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Authorization header",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if not store.verify(credentials):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return credentials
+
+
 class ViewPayload(BaseModel):
     id: str
     code: str
@@ -160,6 +211,26 @@ class ServiceConfigPayload(BaseModel):
     api_key: str
     disabled: bool = False
     devices: list[DeviceConfigPayload] = Field(default_factory=list)
+
+
+class TokenCreatePayload(BaseModel):
+    name: str | None = ""
+
+
+class ScheduleTriggerPayload(BaseModel):
+    schedule_name: str = Field(min_length=1)
+    params_override: dict[str, Any] | None = None
+
+
+class DeviceCanvasPayload(BaseModel):
+    device_name: str = Field(min_length=1)
+    canvas_id: str = Field(min_length=1)
+    params: dict[str, Any] = Field(default_factory=dict)
+
+
+class ManualScheduleTriggerPayload(BaseModel):
+    device_id: str = Field(min_length=1)
+    schedule_name: str = Field(min_length=1)
 
 
 def _parse_params_json(payload: str | None) -> dict[str, Any]:
@@ -340,3 +411,101 @@ def update_service_config(payload: ServiceConfigPayload):
         raise HTTPException(status_code=400, detail={"errors": errors})
 
     return {"config": config.as_dict()}
+
+
+@app.get("/tokens")
+def list_tokens():
+    store = get_token_store_or_503()
+    return {"tokens": store.list_tokens()}
+
+
+@app.post("/tokens", status_code=status.HTTP_201_CREATED)
+def create_token(payload: TokenCreatePayload):
+    store = get_token_store_or_503()
+    token, record = store.create_token(name=(payload.name or ""))
+    return {"token": token, "record": record}
+
+
+@app.delete("/tokens/{token_id}")
+def delete_token(token_id: str):
+    store = get_token_store_or_503()
+    removed = store.delete_token(token_id)
+    if not removed:
+        raise HTTPException(status_code=404, detail="Token not found")
+    return {"status": "deleted"}
+
+
+@app.post("/api/schedules/trigger")
+def trigger_schedules(payload: ScheduleTriggerPayload, _: str = Depends(require_bearer_token)):
+    try:
+        daemon = get_daemon()
+        daemon.refresh_config()
+    except DotDaemonError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if not daemon.config.get_api_key():
+        raise HTTPException(status_code=400, detail="API key is not configured")
+
+    tasks = daemon.build_tasks_by_name(payload.schedule_name, payload.params_override)
+    if not tasks:
+        raise HTTPException(status_code=404, detail="No schedules found with that name")
+
+    results = daemon.run_tasks(tasks)
+    return {"triggered": len(results), "results": results}
+
+
+@app.post("/api/devices/send-canvas")
+def send_canvas_to_device(payload: DeviceCanvasPayload, _: str = Depends(require_bearer_token)):
+    try:
+        daemon = get_daemon()
+        daemon.refresh_config()
+    except DotDaemonError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if not daemon.config.get_api_key():
+        raise HTTPException(status_code=400, detail="API key is not configured")
+
+    devices = daemon.config.cfg.get("devices", [])
+    target = next((device for device in devices if device.get("name") == payload.device_name), None)
+    if target is None:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    task = daemon.build_task_for_device(
+        device=target,
+        canvas_id=payload.canvas_id,
+        params=payload.params,
+        name=f"manual:{payload.canvas_id}",
+    )
+    results = daemon.run_tasks([task])
+    return {"result": results[0] if results else None}
+
+
+@app.post("/config/schedules/trigger")
+def trigger_schedule_from_config(payload: ManualScheduleTriggerPayload):
+    try:
+        daemon = get_daemon()
+        daemon.refresh_config()
+    except DotDaemonError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    devices = daemon.config.cfg.get("devices", [])
+    device = next((item for item in devices if item.get("device_id") == payload.device_id), None)
+    if device is None:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    schedule = next((sched for sched in device.get("schedules", []) if sched.get("name") == payload.schedule_name), None)
+    if schedule is None:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+
+    canvas_id = schedule.get("canvas_id")
+    if not canvas_id:
+        raise HTTPException(status_code=400, detail="Schedule is missing a canvas_id")
+
+    task = daemon.build_task_for_device(
+        device=device,
+        canvas_id=canvas_id,
+        params=schedule.get("params", {}),
+        name=schedule.get("name", "manual"),
+    )
+    results = daemon.run_tasks([task])
+    return {"result": results[0] if results else None}
