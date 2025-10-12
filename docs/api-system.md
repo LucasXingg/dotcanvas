@@ -8,7 +8,9 @@ create and manage API tokens and how to interact with the automation endpoints.
 All public automation endpoints require a **Bearer token**. Tokens are managed from the new
 **API Tokens** page in the web console (`/ui/tokens`) or by calling the `/tokens` REST
 endpoints documented below. Each token is shown **only once** when it is created—store it in a
-safe place.
+safe place. When the server runs in [no-browser mode](./no-browser-mode.md) the `/tokens`
+endpoints are disabled; create or revoke tokens by running the `TokenStore` helper from the
+command line as described in that guide.
 
 Include the token in the `Authorization` header of every API call:
 

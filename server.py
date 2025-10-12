@@ -147,6 +147,14 @@ def get_token_store_or_503() -> TokenStore:
     return token_store
 
 
+def require_frontend_enabled() -> None:
+    if NO_BROWSER_MODE:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Endpoint disabled in no-browser mode",
+        )
+
+
 def require_bearer_token(authorization: str = Header(default="")) -> str:
     store = get_token_store_or_503()
     if not authorization:
@@ -246,12 +254,16 @@ def _parse_params_json(payload: str | None) -> dict[str, Any]:
 
 
 @app.get("/canvases")
-def get_canvases():
+def get_canvases(_: None = Depends(require_frontend_enabled)):
     return {"canvases": list_canvases()}
 
 
 @app.get("/canvases/{canvas_id}")
-def get_canvas(canvas_id: str, params: str | None = Query(default=None)):
+def get_canvas(
+    canvas_id: str,
+    params: str | None = Query(default=None),
+    _: None = Depends(require_frontend_enabled),
+):
     try:
         definition = load_canvas(canvas_id)
     except CanvasNotFoundError as exc:
@@ -268,7 +280,9 @@ def get_canvas(canvas_id: str, params: str | None = Query(default=None)):
 
 
 @app.post("/canvases")
-def create_canvas_endpoint(payload: CanvasCreatePayload):
+def create_canvas_endpoint(
+    payload: CanvasCreatePayload, _: None = Depends(require_frontend_enabled)
+):
     try:
         definition = create_canvas(payload.name, payload.name)
     except CanvasManagerError as exc:
@@ -281,7 +295,12 @@ def create_canvas_endpoint(payload: CanvasCreatePayload):
 
 
 @app.put("/canvases/{canvas_id}")
-def update_canvas(canvas_id: str, payload: CanvasUpdatePayload, params: str | None = Query(default=None)):
+def update_canvas(
+    canvas_id: str,
+    payload: CanvasUpdatePayload,
+    params: str | None = Query(default=None),
+    _: None = Depends(require_frontend_enabled),
+):
     try:
         updated = save_canvas(
             canvas_id,
@@ -305,7 +324,11 @@ def update_canvas(canvas_id: str, payload: CanvasUpdatePayload, params: str | No
 
 
 @app.get("/canvases/{canvas_id}/view-configs")
-def get_canvas_view_configs(canvas_id: str, params: str | None = Query(default=None)):
+def get_canvas_view_configs(
+    canvas_id: str,
+    params: str | None = Query(default=None),
+    _: None = Depends(require_frontend_enabled),
+):
     try:
         configs = load_view_configs(canvas_id, params=_parse_params_json(params))
     except CanvasNotFoundError as exc:
@@ -317,7 +340,11 @@ def get_canvas_view_configs(canvas_id: str, params: str | None = Query(default=N
 
 
 @app.get("/canvases/{canvas_id}/preview")
-def preview_canvas(canvas_id: str, params: str | None = Query(default=None)):
+def preview_canvas(
+    canvas_id: str,
+    params: str | None = Query(default=None),
+    _: None = Depends(require_frontend_enabled),
+):
     try:
         image = render_canvas(canvas_id, params=_parse_params_json(params))
     except CanvasNotFoundError as exc:
@@ -332,7 +359,7 @@ def preview_canvas(canvas_id: str, params: str | None = Query(default=None)):
 
 
 @app.get("/views")
-def get_available_views():
+def get_available_views(_: None = Depends(require_frontend_enabled)):
     return {"views": list_available_views()}
 
 
@@ -340,18 +367,19 @@ def get_available_views():
 def get_recent_logs(
     since: int = Query(default=0, ge=0, description="Return entries with id greater than this value"),
     limit: int = Query(default=50, ge=1, le=500, description="Maximum number of entries to return"),
+    _: None = Depends(require_frontend_enabled),
 ):
     logs = get_logs(since=since, limit=limit)
     return {"logs": logs}
 
 
 @app.get("/daemon/status")
-def get_daemon_status():
+def get_daemon_status(_: None = Depends(require_frontend_enabled)):
     return build_daemon_payload(dot_daemon)
 
 
 @app.post("/daemon/start")
-def start_daemon():
+def start_daemon(_: None = Depends(require_frontend_enabled)):
     try:
         daemon = get_daemon(allow_reinitialise=True)
         daemon.start()
@@ -361,7 +389,7 @@ def start_daemon():
 
 
 @app.post("/daemon/stop")
-def stop_daemon():
+def stop_daemon(_: None = Depends(require_frontend_enabled)):
     try:
         daemon = get_daemon()
         daemon.stop()
@@ -371,7 +399,7 @@ def stop_daemon():
 
 
 @app.post("/daemon/restart")
-def restart_daemon():
+def restart_daemon(_: None = Depends(require_frontend_enabled)):
     try:
         daemon = get_daemon(allow_reinitialise=True)
         daemon.restart()
@@ -381,7 +409,7 @@ def restart_daemon():
 
 
 @app.get("/config")
-def get_service_config():
+def get_service_config(_: None = Depends(require_frontend_enabled)):
     try:
         config = ServercConfig()
     except FileNotFoundError as exc:
@@ -392,7 +420,9 @@ def get_service_config():
 
 
 @app.put("/config")
-def update_service_config(payload: ServiceConfigPayload):
+def update_service_config(
+    payload: ServiceConfigPayload, _: None = Depends(require_frontend_enabled)
+):
     try:
         config = ServercConfig()
     except FileNotFoundError as exc:
@@ -414,20 +444,22 @@ def update_service_config(payload: ServiceConfigPayload):
 
 
 @app.get("/tokens")
-def list_tokens():
+def list_tokens(_: None = Depends(require_frontend_enabled)):
     store = get_token_store_or_503()
     return {"tokens": store.list_tokens()}
 
 
 @app.post("/tokens", status_code=status.HTTP_201_CREATED)
-def create_token(payload: TokenCreatePayload):
+def create_token(
+    payload: TokenCreatePayload, _: None = Depends(require_frontend_enabled)
+):
     store = get_token_store_or_503()
     token, record = store.create_token(name=(payload.name or ""))
     return {"token": token, "record": record}
 
 
 @app.delete("/tokens/{token_id}")
-def delete_token(token_id: str):
+def delete_token(token_id: str, _: None = Depends(require_frontend_enabled)):
     store = get_token_store_or_503()
     removed = store.delete_token(token_id)
     if not removed:
@@ -481,7 +513,10 @@ def send_canvas_to_device(payload: DeviceCanvasPayload, _: str = Depends(require
 
 
 @app.post("/config/schedules/trigger")
-def trigger_schedule_from_config(payload: ManualScheduleTriggerPayload):
+def trigger_schedule_from_config(
+    payload: ManualScheduleTriggerPayload,
+    _: None = Depends(require_frontend_enabled),
+):
     try:
         daemon = get_daemon()
         daemon.refresh_config()
