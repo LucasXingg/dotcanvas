@@ -11,6 +11,8 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, Dict, List
 
+from PIL import Image
+
 from .._base_canvas import _BaseCanvas
 
 
@@ -151,26 +153,28 @@ def save_canvas(
     return existing
 
 
-def render_canvas(canvas_id: str) -> "Image.Image":
+def render_canvas(canvas_id: str, params: Dict[str, Any] | None = None) -> "Image.Image":
     """Render a canvas image using its Canvas class."""
 
     importlib.invalidate_caches()
     module = _load_canvas_module(canvas_id)
     canvas_cls = getattr(module, "Canvas")
-    return canvas_cls.render()
+    return canvas_cls.render(params=params)
 
 
-def load_view_configs(canvas_id: str) -> List[Dict[str, Any]]:
+def load_view_configs(canvas_id: str, params: Dict[str, Any] | None = None) -> List[Dict[str, Any]]:
     """Evaluate the view builder functions and return their configs."""
 
     module = _load_canvas_module(canvas_id)
 
     configs: List[Dict[str, Any]] = []
+    params_dict: Dict[str, Any] = params or {}
+
     for view_id, builder in module.CONFIG.get("views", {}).items():
         try:
             configs.append({
                 "id": view_id,
-                "config": builder(),
+                "config": _BaseCanvas._invoke_view_builder(builder, params_dict),
                 "error": None,
             })
         except Exception as exc:  # pragma: no cover - runtime feedback for UI
@@ -223,7 +227,7 @@ def _render_canvas_source(definition: CanvasDefinition, template_source: str) ->
         indented_body = textwrap.indent(body, " " * 8)
         section = (
             f"    @staticmethod\n"
-            f"    def {view.view_id}() -> dict:\n"
+            f"    def {view.view_id}(params: dict | None = None) -> dict:\n"
             f"{indented_body}"
         )
         view_sections.append(section)
@@ -244,8 +248,8 @@ def _render_canvas_source(definition: CanvasDefinition, template_source: str) ->
     rendered = (
         f"{header}    ID = {json.dumps(definition.canvas_id)}\n\n"
         "    @classmethod\n"
-        "    def render(cls) -> Image.Image:\n"
-        "        return cls._render(CONFIG)\n\n"
+        "    def render(cls, params: dict | None = None) -> Image.Image:\n"
+        "        return cls._render(CONFIG, params=params)\n\n"
         f"{rendered_views}CONFIG = {{\n"
         f"    \"name\": {name_literal},\n"
         f"    \"views\": {{{config_views}}}  # view_id -> view_builder\n"

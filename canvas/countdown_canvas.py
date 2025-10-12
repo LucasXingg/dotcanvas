@@ -17,11 +17,11 @@ class Canvas(_BaseCanvas):
     ID = "countdown_canvas"
 
     @classmethod
-    def render(cls) -> Image.Image:
-        return cls._render(CONFIG)
+    def render(cls, params: dict | None = None) -> Image.Image:
+        return cls._render(CONFIG, params=params)
 
     @staticmethod
-    def hero_square() -> dict:
+    def hero_square(params: dict | None = None) -> dict:
         return {
             "type": "SquareView",
             "location_x": 30,
@@ -35,7 +35,7 @@ class Canvas(_BaseCanvas):
 
 
     @staticmethod
-    def count_down_text() -> dict:
+    def count_down_text(params: dict | None = None) -> dict:
         from datetime import datetime
 
         target_date_str = "2025-12-31"
@@ -58,7 +58,7 @@ class Canvas(_BaseCanvas):
 
 
     @staticmethod
-    def countdown_bar() -> dict:
+    def countdown_bar(params: dict | None = None) -> dict:
         from datetime import datetime
 
         target_date_str = "2025-12-31"
@@ -83,7 +83,7 @@ class Canvas(_BaseCanvas):
 
 
     @staticmethod
-    def icon_view() -> dict:
+    def icon_view(params: dict | None = None) -> dict:
         return {
             "type": "LucideIconView",
             "location_x": 210,
