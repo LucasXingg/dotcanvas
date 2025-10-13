@@ -1,14 +1,8 @@
 import sys
 from pathlib import Path
 
-try:
-    # preferred when run as a package: python -m canvas.calendar_canvas
-    from ._base_canvas import _BaseCanvas
-except Exception:
-    # fallback when running the file directly: python canvas/calendar_canvas.py
-    # add project root to sys.path and import absolute package
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from canvas._base_canvas import _BaseCanvas
+from ._base_canvas import _BaseCanvas
+from ._package_manager import install_package
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -22,6 +16,8 @@ class Canvas(_BaseCanvas):
 
     @staticmethod
     def event_text(params: dict | None = None) -> dict:
+        install_package("caldav", "icalendar")
+
         from caldav import DAVClient
         from icalendar import Calendar
         from datetime import datetime, timedelta, timezone
@@ -29,6 +25,18 @@ class Canvas(_BaseCanvas):
         username = "example@icloud.com" # replace with your Apple ID email
         password = "abcd-abcd-abcd-abcd"  # App-specific password
         # (https://account.apple.com/account/manage -> App-Specific Passwords)
+
+        if username == "example@icloud.com":
+            return {
+                "type": "TextView",
+                "location_x": 16,
+                "location_y": 52,
+                "width": 120,
+                "height": 40,
+                "text": "\nNo Apple Account info",
+                "fill": "#111827",
+                "font_size": 15,
+            }
 
         client = DAVClient(
             url="https://caldav.icloud.com/",
@@ -134,21 +142,14 @@ class Canvas(_BaseCanvas):
         today = datetime.today()
         current_mmdd = today.strftime("%m-%d")
 
-        # Parse the given start date
-        start_date = datetime.strptime("2025-09-02", "%Y-%m-%d")
-
-        # Calculate the difference in weeks (rounded up)
-        days_diff = (today - start_date).days
-        week_num = days_diff // 7 + 1  # +1 so the start week counts as week 1
-
 
         return {
             "type": "TextView",
-            "location_x": 16,
+            "location_x": 233,
             "location_y": 16,
             "width": 120,
             "height": 40,
-            "text": f"Week {week_num} of Semester           {current_mmdd}",
+            "text": current_mmdd,
             "fill": "#111827",
             "font_size": 18,
         }
@@ -180,6 +181,34 @@ class Canvas(_BaseCanvas):
         }
 
 
+    @staticmethod
+    def head_view(params: dict | None = None) -> dict:
+        from datetime import datetime
+
+        # Current date
+        today = datetime.today()
+
+        # Parse the given start date
+        start_date = params.get("start_date") if params.get("start_date") else "2025-09-01"
+        start_date_datetime = datetime.strptime(start_date, "%Y-%m-%d")
+
+        # Calculate the difference in weeks (rounded up)
+        days_diff = (today - start_date_datetime).days
+        week_num = days_diff // 7 + 1  # +1 so the start week counts as week 1
+
+
+        return {
+            "type": "TextView",
+            "location_x": 16,
+            "location_y": 16,
+            "width": 120,
+            "height": 40,
+            "text": f"Week {week_num} of Semester",
+            "fill": "#111827",
+            "font_size": 18,
+        }
+
+
 CONFIG = {
     "name": "calendar_canvas",
     "views": {
@@ -187,6 +216,7 @@ CONFIG = {
         "Weather_view": Canvas.Weather_view,
         "date_view": Canvas.date_view,
         "icon_view": Canvas.icon_view,
+        "head_view": Canvas.head_view,
     }  # view_id -> view_builder
 }
 

@@ -25,6 +25,8 @@ canvas/*.py
 !canvas/_base_canvas.py
 !canvas/_canvas_template.py
 !canvas/__init__.py
+!canvas/_package_manager.py
+
 # demo canvas
 !canvas/countdown_canvas.py
 !canvas/calendar_canvas.py

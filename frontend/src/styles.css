@@ -571,6 +571,63 @@ code, pre, textarea {
   background: var(--color-surface-strong);
 }
 
+.generated-token {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  border-radius: 16px;
+  border: 1px dashed var(--color-border);
+  background: rgba(244, 245, 247, 0.6);
+}
+
+.generated-token__content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.token-value {
+  display: inline-flex;
+  padding: 0.4rem 0.75rem;
+  border-radius: 10px;
+  background: #1f232a;
+  color: #f7f7f9;
+  font-size: 0.95rem;
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.token-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.token-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.9rem 1.1rem;
+  border-radius: 14px;
+  border: 1px solid rgba(207, 212, 222, 0.7);
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.token-name {
+  margin: 0;
+  font-weight: 600;
+  font-size: 1.05rem;
+}
+
+.token-meta {
+  margin: 0.15rem 0 0;
+  font-size: 0.85rem;
+}
+
 .page-description {
   margin: 0;
   color: var(--color-muted);

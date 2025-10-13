@@ -1,14 +1,8 @@
 import sys
 from pathlib import Path
 
-try:
-    # preferred when run as a package: python -m canvas.new_canvas
-    from ._base_canvas import _BaseCanvas
-except Exception:
-    # fallback when running the file directly: python canvas/new_canvas.py
-    # add project root to sys.path and import absolute package
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from canvas._base_canvas import _BaseCanvas
+from ._base_canvas import _BaseCanvas
+from ._package_manager import install_package
 
 from PIL import Image, ImageDraw, ImageFont
 

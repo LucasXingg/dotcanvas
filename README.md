@@ -114,6 +114,7 @@ npm run dev
 - 对于视图构造函数，所有变量都需要包含在返回字典中，除非另行声明。
 - 实时预览只会在保存修改后（点击`保存更改`按钮或使用快捷键`command + s`）更新。
 - [视图文档](docs/views/index.md)
+- 如果需要使用额外的包，可以使用`install_package()`方法来安装一个或多个包，例如`install_package("numpy", "pandas")`
 
 ## 配置管理
 - API密钥：在 Dot. APP 中生成
