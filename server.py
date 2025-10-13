@@ -28,12 +28,45 @@ from src.service_config import ServercConfig
 from src.token_store import TokenStore, TokenStoreError
 
 
+# MARK: - INIT
+
 app = FastAPI()
 
 FRONTEND_DIST = Path(__file__).resolve().parent / "frontend" / "dist"
 FRONTEND_ASSETS = FRONTEND_DIST / "assets"
 
 NO_BROWSER_MODE = os.getenv("DOTCANVAS_NO_BROWSER", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+# logger
+dot_logger = logging.getLogger("dot")
+if log_buffer_handler not in dot_logger.handlers:
+    log_buffer_handler.setFormatter(logging.Formatter("%(levelname)s | %(name)s | %(message)s"))
+    dot_logger.addHandler(log_buffer_handler)
+dot_logger.setLevel(logging.INFO)
+
+logger = logging.getLogger("dot.server")
+
+# token
+
+try:
+    token_store = TokenStore()
+except TokenStoreError as exc:  # pragma: no cover - startup validation
+    logger.error("Failed to load API token store: %s", exc)
+    token_store = None
+
+# daemon
+
+daemon_boot_error: str | None = None
+
+try:
+    dot_daemon = DotDaemon()
+except Exception as exc:  # noqa: BLE001 - surface boot problems in logs
+    logger.warning("Failed to initialise DotDaemon: %s", exc)
+    dot_daemon = None
+    daemon_boot_error = str(exc)
+
+# server mode
 
 if not NO_BROWSER_MODE:
     if FRONTEND_ASSETS.exists():
@@ -47,6 +80,8 @@ else:
     logging.getLogger("dot.server").info("Running in no-browser mode; frontend routes are disabled.")
 
 
+# MARK: - Helpers
+
 def frontend_index() -> FileResponse:
     if NO_BROWSER_MODE:
         raise HTTPException(status_code=404, detail="Frontend is disabled in no-browser mode")
@@ -54,58 +89,6 @@ def frontend_index() -> FileResponse:
     if not index_path.exists():
         raise HTTPException(status_code=503, detail="Frontend build is missing. Run npm run build in frontend/.")
     return FileResponse(index_path)
-
-
-@app.get("/", include_in_schema=False)
-def root():
-    if NO_BROWSER_MODE:
-        return {"message": "DotCanvas API is running in no-browser mode.", "documentation": "/docs"}
-    return RedirectResponse(url="/ui/daemon")
-
-
-@app.get("/ui", include_in_schema=False)
-def ui_root():
-    if NO_BROWSER_MODE:
-        raise HTTPException(status_code=404, detail="Frontend is disabled in no-browser mode")
-    return frontend_index()
-
-
-@app.get("/ui/{full_path:path}", include_in_schema=False)
-def ui_fallback(full_path: str):  # noqa: ARG001 - route param for matching
-    if NO_BROWSER_MODE:
-        raise HTTPException(status_code=404, detail="Frontend is disabled in no-browser mode")
-    candidate = (FRONTEND_DIST / full_path).resolve()
-    try:
-        candidate.relative_to(FRONTEND_DIST)
-    except ValueError as exc:  # path traversal attempt
-        raise HTTPException(status_code=404, detail="Not found") from exc
-    if candidate.exists() and candidate.is_file():
-        return FileResponse(candidate)
-    return frontend_index()
-
-# config loggers
-dot_logger = logging.getLogger("dot")
-if log_buffer_handler not in dot_logger.handlers:
-    log_buffer_handler.setFormatter(logging.Formatter("%(levelname)s | %(name)s | %(message)s"))
-    dot_logger.addHandler(log_buffer_handler)
-dot_logger.setLevel(logging.INFO)
-
-logger = logging.getLogger("dot.server")
-
-try:
-    token_store = TokenStore()
-except TokenStoreError as exc:  # pragma: no cover - startup validation
-    logger.error("Failed to load API token store: %s", exc)
-    token_store = None
-
-daemon_boot_error: str | None = None
-
-try:
-    dot_daemon = DotDaemon()
-except Exception as exc:  # noqa: BLE001 - surface boot problems in logs
-    logger.warning("Failed to initialise DotDaemon: %s", exc)
-    dot_daemon = None
-    daemon_boot_error = str(exc)
 
 
 def get_daemon(allow_reinitialise: bool = False) -> DotDaemon:
@@ -179,6 +162,20 @@ def require_bearer_token(authorization: str = Header(default="")) -> str:
     return credentials
 
 
+def _parse_params_json(payload: str | None) -> dict[str, Any]:
+    if not payload:
+        return {}
+    try:
+        data = json.loads(payload)
+    except json.JSONDecodeError as exc:  # pragma: no cover - input validation
+        raise HTTPException(status_code=400, detail=f"Invalid params JSON: {exc.msg}") from exc
+    if not isinstance(data, dict):
+        raise HTTPException(status_code=400, detail="params must be a JSON object")
+    return data
+
+
+# MARK: - Payload models
+
 class ViewPayload(BaseModel):
     id: str
     code: str
@@ -241,17 +238,37 @@ class ManualScheduleTriggerPayload(BaseModel):
     schedule_name: str = Field(min_length=1)
 
 
-def _parse_params_json(payload: str | None) -> dict[str, Any]:
-    if not payload:
-        return {}
-    try:
-        data = json.loads(payload)
-    except json.JSONDecodeError as exc:  # pragma: no cover - input validation
-        raise HTTPException(status_code=400, detail=f"Invalid params JSON: {exc.msg}") from exc
-    if not isinstance(data, dict):
-        raise HTTPException(status_code=400, detail="params must be a JSON object")
-    return data
+# MARK: - Frontend routes
 
+@app.get("/", include_in_schema=False)
+def root():
+    if NO_BROWSER_MODE:
+        return {"message": "DotCanvas API is running in no-browser mode.", "documentation": "/docs"}
+    return RedirectResponse(url="/ui/daemon")
+
+
+@app.get("/ui", include_in_schema=False)
+def ui_root():
+    if NO_BROWSER_MODE:
+        raise HTTPException(status_code=404, detail="Frontend is disabled in no-browser mode")
+    return frontend_index()
+
+
+@app.get("/ui/{full_path:path}", include_in_schema=False)
+def ui_fallback(full_path: str):  # noqa: ARG001 - route param for matching
+    if NO_BROWSER_MODE:
+        raise HTTPException(status_code=404, detail="Frontend is disabled in no-browser mode")
+    candidate = (FRONTEND_DIST / full_path).resolve()
+    try:
+        candidate.relative_to(FRONTEND_DIST)
+    except ValueError as exc:  # path traversal attempt
+        raise HTTPException(status_code=404, detail="Not found") from exc
+    if candidate.exists() and candidate.is_file():
+        return FileResponse(candidate)
+    return frontend_index()
+
+
+# MARK: - Canvas editor
 
 @app.get("/canvases")
 def get_canvases(_: None = Depends(require_frontend_enabled)):
@@ -362,6 +379,7 @@ def preview_canvas(
 def get_available_views(_: None = Depends(require_frontend_enabled)):
     return {"views": list_available_views()}
 
+# MARK: - Daemon config
 
 @app.get("/logs")
 def get_recent_logs(
@@ -408,6 +426,8 @@ def restart_daemon(_: None = Depends(require_frontend_enabled)):
     return build_daemon_payload(daemon)
 
 
+# MARK: - Service config
+
 @app.get("/config")
 def get_service_config(_: None = Depends(require_frontend_enabled)):
     try:
@@ -443,6 +463,42 @@ def update_service_config(
     return {"config": config.as_dict()}
 
 
+@app.post("/config/schedules/trigger")
+def trigger_schedule_from_config(
+    payload: ManualScheduleTriggerPayload,
+    _: None = Depends(require_frontend_enabled),
+):
+    try:
+        daemon = get_daemon()
+        daemon.refresh_config()
+    except DotDaemonError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    devices = daemon.config.cfg.get("devices", [])
+    device = next((item for item in devices if item.get("device_id") == payload.device_id), None)
+    if device is None:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    schedule = next((sched for sched in device.get("schedules", []) if sched.get("name") == payload.schedule_name), None)
+    if schedule is None:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+
+    canvas_id = schedule.get("canvas_id")
+    if not canvas_id:
+        raise HTTPException(status_code=400, detail="Schedule is missing a canvas_id")
+
+    task = daemon.build_task_for_device(
+        device=device,
+        canvas_id=canvas_id,
+        params=schedule.get("params", {}),
+        name=schedule.get("name", "manual"),
+    )
+    results = daemon.run_tasks([task])
+    return {"result": results[0] if results else None}
+
+
+# MARK: - Token management
+
 @app.get("/tokens")
 def list_tokens(_: None = Depends(require_frontend_enabled)):
     store = get_token_store_or_503()
@@ -466,6 +522,8 @@ def delete_token(token_id: str, _: None = Depends(require_frontend_enabled)):
         raise HTTPException(status_code=404, detail="Token not found")
     return {"status": "deleted"}
 
+
+# MARK: - API endpoints
 
 @app.post("/api/schedules/trigger")
 def trigger_schedules(payload: ScheduleTriggerPayload, _: str = Depends(require_bearer_token)):
@@ -507,40 +565,6 @@ def send_canvas_to_device(payload: DeviceCanvasPayload, _: str = Depends(require
         canvas_id=payload.canvas_id,
         params=payload.params,
         name=f"manual:{payload.canvas_id}",
-    )
-    results = daemon.run_tasks([task])
-    return {"result": results[0] if results else None}
-
-
-@app.post("/config/schedules/trigger")
-def trigger_schedule_from_config(
-    payload: ManualScheduleTriggerPayload,
-    _: None = Depends(require_frontend_enabled),
-):
-    try:
-        daemon = get_daemon()
-        daemon.refresh_config()
-    except DotDaemonError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-    devices = daemon.config.cfg.get("devices", [])
-    device = next((item for item in devices if item.get("device_id") == payload.device_id), None)
-    if device is None:
-        raise HTTPException(status_code=404, detail="Device not found")
-
-    schedule = next((sched for sched in device.get("schedules", []) if sched.get("name") == payload.schedule_name), None)
-    if schedule is None:
-        raise HTTPException(status_code=404, detail="Schedule not found")
-
-    canvas_id = schedule.get("canvas_id")
-    if not canvas_id:
-        raise HTTPException(status_code=400, detail="Schedule is missing a canvas_id")
-
-    task = daemon.build_task_for_device(
-        device=device,
-        canvas_id=canvas_id,
-        params=schedule.get("params", {}),
-        name=schedule.get("name", "manual"),
     )
     results = daemon.run_tasks([task])
     return {"result": results[0] if results else None}
