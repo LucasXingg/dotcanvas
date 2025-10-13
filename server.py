@@ -54,6 +54,12 @@ try:
 except TokenStoreError as exc:  # pragma: no cover - startup validation
     logger.error("Failed to load API token store: %s", exc)
     token_store = None
+else:
+    if NO_BROWSER_MODE and not token_store.list_tokens():
+        token, _ = token_store.create_token(name="auto")
+        message = f"Generated API token for no-browser mode: {token}"
+        logger.info(message)
+        print(message, flush=True)
 
 # daemon
 
