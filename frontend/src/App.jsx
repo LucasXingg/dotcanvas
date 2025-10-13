@@ -3,6 +3,7 @@ import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import CanvasPage from './pages/CanvasPage.jsx';
 import DaemonPage from './pages/DaemonPage.jsx';
 import ConfigPage from './pages/ConfigPage.jsx';
+import TokensPage from './pages/TokensPage.jsx';
 import { useTranslation } from './i18n/LanguageContext.jsx';
 import { ToastProvider, useToast } from './components/ToastProvider.jsx';
 
@@ -36,6 +37,7 @@ function Navigation() {
     { to: '/canvas', label: t('nav.canvas') },
     { to: '/daemon', label: t('nav.daemon') },
     { to: '/config', label: t('nav.config') },
+    { to: '/tokens', label: t('nav.tokens') },
   ];
 
   return (
@@ -71,6 +73,9 @@ function Shell() {
     if (path.startsWith('/config')) {
       return { title: t('page.config.title'), subtitle: t('page.config.subtitle') };
     }
+    if (path.startsWith('/tokens')) {
+      return { title: t('page.tokens.title'), subtitle: t('page.tokens.subtitle') };
+    }
     return { title: t('page.daemon.title'), subtitle: t('page.daemon.subtitle') };
   }, [location.pathname, t]);
 
@@ -94,6 +99,7 @@ function Shell() {
           <Route path="/canvas" element={<CanvasPage />} />
           <Route path="/daemon" element={<DaemonPage />} />
           <Route path="/config" element={<ConfigPage />} />
+          <Route path="/tokens" element={<TokensPage />} />
         </Routes>
       </main>
     </div>

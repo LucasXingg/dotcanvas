@@ -18,7 +18,7 @@
 ## 渲染逻辑
 - 使用 `FontManager.get_font` 根据字号、字体名返回 Pillow 字体对象。
 - 调用 `draw.text` 在配置的坐标直接绘制，无自动换行，需要自行确保内容适配区域。
-- 默认使用`assets`文件夹中的`NotoSansSC-Bold.ttf`字体进行渲染。
+- 默认会从 `assets/fonts` 目录尝试加载 `NotoSansSC-Bold.ttf` 作为首选字体。
 - 字体管理器不支持可变字重字体，请使用静态字体。
 
 ## 示例配置
@@ -32,6 +32,6 @@
   "text": "欢迎使用 dotcanvas",
   "fill": "#0F172A",
   "font_size": 24,
-  "font_name": "NotoSansSC-Bold-Regular",
+  "font_name": "NotoSansSC-Bold"
 }
 ```

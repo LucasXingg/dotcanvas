@@ -1,17 +1,18 @@
+import base64
+import copy
 import importlib
+import io
 import logging
 import time
 from dataclasses import dataclass, field
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from croniter import croniter
 from PIL import Image
-import io
-import base64
 
 
 from .service_config import ServercConfig
@@ -65,15 +66,26 @@ class DotDaemon:
         self.config_path = config_path
         self.load_config()
 
-        self.api_client = APIClient(key=self.config.get_api_key())
-
         self.scheduler = BackgroundScheduler()
         self.start()
 
     def load_config(self) -> None:
         self.config = ServercConfig(self.config_path)
-        if not self.config.validate():
+        if not self.config.validate(verbose=False):
             raise DotDaemonError("Invalid configuration")
+        self.api_client = APIClient(key=self.config.get_api_key())
+
+    def refresh_config(self) -> None:
+        try:
+            if self.config is None:
+                self.load_config()
+            else:
+                self.config.load_config()
+        except Exception as exc:
+            raise DotDaemonError(f"Failed to reload configuration: {exc}") from exc
+        if not self.config.validate(verbose=False):
+            raise DotDaemonError("Invalid configuration")
+        self.api_client = APIClient(key=self.config.get_api_key())
         
     def load_tasks(self) -> bool:
         self.scheduler = BackgroundScheduler()
@@ -158,9 +170,17 @@ class DotDaemon:
         self.scheduler.remove_all_jobs()
         logger.info("All scheduled tasks have been removed")
 
-    def canvas_executer(self, task: ScheduledTask) -> None:
+    def canvas_executer(self, task: ScheduledTask) -> Dict[str, Any]:
         start_time = time.time()
         image = None
+        result: Dict[str, Any] = {
+            "task_name": task.task_name,
+            "device_name": task.device_name,
+            "device_id": task.device_id,
+            "canvas_id": task.canvas_id,
+            "triggered_at": datetime.now().isoformat(),
+            "status": "pending",
+        }
         try:
             canvas_module_name = f"canvas.{task.canvas_id}"
             canvas_file = Path(__file__).resolve().parents[1] / "canvas" / f"{task.canvas_id}.py"
@@ -177,19 +197,30 @@ class DotDaemon:
 
             if image is None:
                 raise ValueError(f"Canvas '{task.canvas_id}' returned no image")
-            
+
             base64_image = self.image_to_base64(image)
             self.api_client.send_image(
                 device_id=task.device_id,
-                image=base64_image)
+                image=base64_image,
+            )
 
             task.last_run = datetime.now()
             task.compute_next_run(task.last_run)
+            result["status"] = "success"
         except Exception as exc:
             logger.error(f"Error executing task {task.task_name}: {exc}")
+            result["status"] = "error"
+            result["error"] = str(exc)
         end_time = time.time()
         duration = end_time - start_time
-        logger.info(f"Task {task.task_name} for device {task.device_name} completed. Duration: {duration:.2f} seconds")
+        result["duration"] = duration
+        logger.info(
+            "Task %s for device %s completed. Duration: %.2f seconds",
+            task.task_name,
+            task.device_name,
+            duration,
+        )
+        return result
 
     def image_to_base64(self, img: Image.Image, format: str = "PNG") -> str:
         # Create an in-memory buffer
@@ -201,6 +232,58 @@ class DotDaemon:
         # Encode to base64
         img_b64 = base64.b64encode(img_bytes).decode("utf-8")
         return img_b64
+
+    def build_tasks_by_name(
+        self,
+        schedule_name: str,
+        params_override: Optional[Dict[str, Any]] = None,
+    ) -> List[ScheduledTask]:
+        tasks: List[ScheduledTask] = []
+        for device, _, schedule in self.config.iter_device_schedules():
+            if schedule.get("name") != schedule_name:
+                continue
+            params = copy.deepcopy(schedule.get("params", {}))
+            if params_override:
+                params.update(params_override)
+            task = ScheduledTask(
+                task_name=schedule.get("name", ""),
+                device_name=device.get("name", device.get("device_id", "")),
+                device_id=device.get("device_id", ""),
+                cron=schedule.get("cron", ""),
+                canvas_id=schedule.get("canvas_id", ""),
+                params=params,
+            )
+            task.compute_next_run()
+            tasks.append(task)
+        return tasks
+
+    def build_task_for_device(
+        self,
+        *,
+        device: Dict[str, Any],
+        canvas_id: str,
+        params: Optional[Dict[str, Any]] = None,
+        name: str = "ad-hoc",
+    ) -> ScheduledTask:
+        task = ScheduledTask(
+            task_name=name,
+            device_name=device.get("name", device.get("device_id", "")),
+            device_id=device.get("device_id", ""),
+            cron="",
+            canvas_id=canvas_id,
+            params=copy.deepcopy(params or {}),
+        )
+        task.compute_next_run()
+        return task
+
+    def run_tasks(self, tasks: List[ScheduledTask]) -> List[Dict[str, Any]]:
+        results: List[Dict[str, Any]] = []
+        for task in tasks:
+            result = self.canvas_executer(task)
+            if task.next_run is not None:
+                result["next_run"] = task.next_run.isoformat()
+            results.append(result)
+        return results
 
 
 

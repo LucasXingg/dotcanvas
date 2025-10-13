@@ -67,6 +67,7 @@ export default function ConfigPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [invalidScheduleIds, setInvalidScheduleIds] = useState(new Set());
+  const [triggeringScheduleIds, setTriggeringScheduleIds] = useState(new Set());
 
   const nextUid = useCallback(() => {
     const value = uidRef.current;
@@ -237,6 +238,53 @@ export default function ConfigPage() {
       });
     },
     [t],
+  );
+
+  const triggerSchedule = useCallback(
+    async (device, schedule) => {
+      if (!schedule.name || !device.device_id) {
+        return;
+      }
+      const displayName = schedule.name;
+      const displayDevice = device.name || device.device_id;
+      setTriggeringScheduleIds((current) => {
+        const next = new Set(current);
+        next.add(schedule._uid);
+        return next;
+      });
+      try {
+        const response = await fetch('/config/schedules/trigger', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ device_id: device.device_id, schedule_name: schedule.name }),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.detail || response.statusText);
+        }
+        setStatus({
+          key: 'config.status.triggered',
+          params: { name: displayName, device: displayDevice },
+          type: 'success',
+          raw: null,
+        });
+      } catch (error) {
+        console.error('Failed to trigger schedule', error);
+        setStatus({
+          key: 'config.status.triggerFailed',
+          params: { message: error.message },
+          type: 'error',
+          raw: null,
+        });
+      } finally {
+        setTriggeringScheduleIds((current) => {
+          const next = new Set(current);
+          next.delete(schedule._uid);
+          return next;
+        });
+      }
+    },
+    [],
   );
 
   const handleParamsChange = useCallback(
@@ -422,13 +470,27 @@ export default function ConfigPage() {
                         <div key={schedule._uid} className="schedule-card">
                           <div className="view-card-header">
                             <h4>{schedule.name || t('placeholder.scheduleName')}</h4>
-                            <button
-                              type="button"
-                              className="ghost-button"
-                              onClick={() => removeSchedule(device._uid, schedule._uid)}
-                            >
-                              {t('config.action.removeSchedule')}
-                            </button>
+                            <div className="inline-actions" style={{ gap: '0.5rem' }}>
+                              <button
+                                type="button"
+                                className="secondary-button"
+                                onClick={() => triggerSchedule(device, schedule)}
+                                disabled={
+                                  !schedule.name || !device.device_id || triggeringScheduleIds.has(schedule._uid)
+                                }
+                              >
+                                {triggeringScheduleIds.has(schedule._uid)
+                                  ? t('config.action.triggering')
+                                  : t('config.action.triggerNow')}
+                              </button>
+                              <button
+                                type="button"
+                                className="ghost-button"
+                                onClick={() => removeSchedule(device._uid, schedule._uid)}
+                              >
+                                {t('config.action.removeSchedule')}
+                              </button>
+                            </div>
                           </div>
                           <div className="form-grid">
                             <div className="input-field">
