@@ -50,18 +50,35 @@ class APIClient:
         }
 
         url = f"{self.base_url}/{quote(device_id, safe='')}/image"
-        response = requests.post(
-            url,
-            headers=headers,
-            json=payload,
-            timeout=timeout,
-        )
-        response.raise_for_status()
-
-        if response.status_code == 204 or not response.content:
-            logger.error(f"api error ({response.status_code}): empty response")
+        try:
+            response = requests.post(
+                url,
+                headers=headers,
+                json=payload,
+                timeout=timeout,
+            )
+            response.raise_for_status()
+        except requests.RequestException as exc:
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            detail = ""
+            if getattr(exc, "response", None) is not None:
+                detail = (exc.response.text or "").strip()
+            if status is not None:
+                logger.error("api error (%s): %s", status, detail or exc)
+            else:
+                logger.error("api error: %s", exc)
             return None
 
-        data = response.json()
-        logger.debug(f"Success ({response.status_code}): {data}")
+        # 204 / empty body is a successful no-content response — not an error
+        if response.status_code == 204 or not response.content:
+            logger.debug("Success (%s): empty response", response.status_code)
+            return None
+
+        try:
+            data = response.json()
+        except ValueError:
+            logger.error("api error (%s): invalid JSON response", response.status_code)
+            return None
+
+        logger.debug("Success (%s): %s", response.status_code, data)
         return data
