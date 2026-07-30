@@ -23,12 +23,9 @@ user_site/
 configs/*
 !configs/config-example.yaml
 
-# canvas
+# canvas — user-authored modules only (framework lives in src/canvas_runtime/)
 canvas/*.py
-!canvas/_base_canvas.py
-!canvas/_canvas_template.py
 !canvas/__init__.py
-!canvas/_package_manager.py
 
 # demo canvas
 !canvas/countdown_canvas.py

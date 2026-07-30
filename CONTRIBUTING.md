@@ -29,11 +29,12 @@
 DotCanvas 提供一个可定制的画布渲染与管理平台，后端基于 FastAPI，前端使用静态页面与 Fetch API 通信，渲染由 Pillow 完成。
 
 ### 核心目录结构
-- `canvas/`：自定义画布与视图实现，含 `_base_canvas.py`、`views/` 等核心模块。
-- `pages/`：前端页面（例如 `daemon.html`、`canvas.html`、`config.html`）。
+- `canvas/`：用户画布模块（每个画布一个 `*.py`），不含框架代码。
+- `src/canvas_runtime/`：画布框架（基类、模板、`views/`、`canvas_manager/`、运行时包安装）。
 - `configs/`：配置文件路径。
 - `assets/`：字体与其他静态资源（如 `font_manager.py`）。
-- `src/`：后台服务逻辑（`api.py`、`daemon.py`、`service_config.py` 等）。
+- `src/`：后台服务逻辑（`api.py`、`daemon.py`、`service_config.py` 等）以及上述 `canvas_runtime`。
+- `frontend/`：Vite + React 管理界面。
 - `server.py`：服务启动脚本
 
 ### 开发提示
@@ -48,15 +49,15 @@ DotCanvas 提供一个可定制的画布渲染与管理平台，后端基于 Fas
 Views 负责在画布上绘制图形、文字或其他内容。每个视图需继承 `_BaseView` 并实现静态方法 `draw`，该方法接收 `PIL.ImageDraw` 实例和配置字典。
 
 ### 1. 复制模板
-从 [`canvas/views/_new_view_template.py`](canvas/views/_new_view_template.py) 开始，复制模板至同目录下的新模块。例如创建横幅视图：
+从 [`src/canvas_runtime/views/_new_view_template.py`](src/canvas_runtime/views/_new_view_template.py) 开始，复制模板至同目录下的新模块。例如创建横幅视图：
 ```bash
-cp canvas/views/_new_view_template.py canvas/views/banner.py
+cp src/canvas_runtime/views/_new_view_template.py src/canvas_runtime/views/banner.py
 ```
 
 ### 2. 重命名类与类型标识
 在新模块中：
 - 将类名改为具描述性的名称（如 `BannerView`）。
-- 将 `TYPE` 常量设置为全局唯一字符串。`_BaseCanvas.find_available_views` 会扫描 `canvas.views` 目录以发现该标识，因此文件名与类名需与视图保持一致。
+- 将 `TYPE` 常量设置为全局唯一字符串。`_BaseCanvas.find_available_views` 会扫描 `src.canvas_runtime.views` 目录以发现该标识，因此文件名与类名需与视图保持一致。
 
 ### 3. 定义配置参数
 扩展 `_BaseView.DEFAULT_PARAMS`，为视图所需的额外配置键提供说明：
@@ -70,16 +71,16 @@ PARAMS = {
 ```
 
 ### 4. 实现 `draw` 方法
-实现 `@staticmethod draw(draw: ImageDraw.ImageDraw, config: dict) -> None`，使用传入的 `PIL.ImageDraw` 对象绘制视图内容。参考 [`CircleView.draw`](canvas/views/circle.py) 等示例，验证 `config` 参数并提供合理默认值。
+实现 `@staticmethod draw(draw: ImageDraw.ImageDraw, config: dict) -> None`，使用传入的 `PIL.ImageDraw` 对象绘制视图内容。参考 [`CircleView.draw`](src/canvas_runtime/views/circle.py) 等示例，验证 `config` 参数并提供合理默认值。
 
 ### 5. 导出视图模块
-若希望通过 `canvas.views` 直接导入新视图，可在 [`canvas/views/__init__.py`](canvas/views/__init__.py) 中添加：
+若希望通过 `src.canvas_runtime.views` 直接导入新视图，可在 [`src/canvas_runtime/views/__init__.py`](src/canvas_runtime/views/__init__.py) 中添加：
 ```python
 from .banner import BannerView
 
 __all__ = ["BannerView"]
 ```
-**注：** `Canvas`类会自动扫描`/canvas/views`路径下的模块，所以此步骤非必需，但能提升模块的可用性。
+**注：** `Canvas` 类会自动扫描 `src.canvas_runtime.views` 下的模块，所以此步骤非必需，但能提升模块的可用性。
 
 ### 6. 编写视图文档
 从 [`docs/view-doc-template.md`](docs/view-doc-template.md) 开始，复制模板至`docs/views`目录下。例如创建横幅文档：

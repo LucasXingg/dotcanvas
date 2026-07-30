@@ -1,9 +1,5 @@
-"""dotcanvas package utilities."""
+"""User canvas modules.
 
-from ._package_manager import ensure_user_site, install_package, install_packages
-
-__all__ = [
-    "ensure_user_site",
-    "install_package",
-    "install_packages",
-]
+This package only holds user-authored canvas files (``*.py``). Framework code
+lives under ``src.canvas_runtime``.
+"""

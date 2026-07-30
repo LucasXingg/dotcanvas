@@ -32,5 +32,5 @@
 ```
 
 ## 相关参考
-- `canvas/views/<view_name>.py`
+- `src/canvas_runtime/views/<view_name>.py`
 - 若视图依赖其它模块，请补充链接，方便查阅源码。
