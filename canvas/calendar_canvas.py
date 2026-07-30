@@ -1,8 +1,5 @@
-import sys
-from pathlib import Path
-
-from ._base_canvas import _BaseCanvas
-from ._package_manager import install_package
+from src.canvas_runtime.base_canvas import _BaseCanvas
+from src.canvas_runtime.package_manager import install_package
 
 from PIL import Image, ImageDraw, ImageFont
 

@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
-from canvas.canvas_manager import (
+from src.canvas_runtime.canvas_manager import (
     CanvasManagerError,
     CanvasNotFoundError,
     create_canvas,
@@ -21,6 +21,9 @@ from canvas.canvas_manager import (
     render_canvas,
     save_canvas,
 )
+from src.canvas_runtime.package_manager import ensure_user_site
+
+ensure_user_site()
 
 from src.daemon import DotDaemon, DotDaemonError
 from src.log_buffer import get_logs, log_buffer_handler
