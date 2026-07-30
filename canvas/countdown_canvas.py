@@ -1,14 +1,4 @@
-import sys
-from pathlib import Path
-
-try:
-    # preferred when run as a package: python -m canvas.countdown_canvas
-    from ._base_canvas import _BaseCanvas
-except Exception:
-    # fallback when running the file directly: python canvas/countdown_canvas.py
-    # add project root to sys.path and import absolute package
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from canvas._base_canvas import _BaseCanvas
+from src.canvas_runtime.base_canvas import _BaseCanvas
 
 from PIL import Image, ImageDraw, ImageFont
 

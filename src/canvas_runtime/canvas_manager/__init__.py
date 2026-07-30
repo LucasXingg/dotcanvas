@@ -13,11 +13,32 @@ from typing import Any, Dict, List
 
 from PIL import Image
 
-from .._base_canvas import _BaseCanvas
+from ..base_canvas import _BaseCanvas
 
 
-CANVAS_DIR = Path(__file__).resolve().parents[1]
-CANVAS_TEMPLATE = CANVAS_DIR / "_canvas_template.py"
+# canvas_manager/ -> canvas_runtime/ -> src/ -> project root
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+CANVAS_DIR = _PROJECT_ROOT / "canvas"
+CANVAS_TEMPLATE = Path(__file__).resolve().parents[1] / "canvas_template.py"
+
+
+def _ensure_canvas_package() -> None:
+    """Ensure ``canvas/`` exists and is importable as a package.
+
+    Docker volume mounts may overlay an empty host directory that lacks
+    ``__init__.py``; create a minimal one so ``import canvas.<id>`` works.
+    """
+
+    CANVAS_DIR.mkdir(parents=True, exist_ok=True)
+    init_path = CANVAS_DIR / "__init__.py"
+    if not init_path.exists():
+        init_path.write_text(
+            '"""User canvas modules. Framework code lives in src.canvas_runtime."""\n'
+        )
+
+
+_ensure_canvas_package()
+
 
 
 class CanvasManagerError(RuntimeError):

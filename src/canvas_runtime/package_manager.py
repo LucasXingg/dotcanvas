@@ -13,7 +13,8 @@ from typing import Iterable
 
 logger = logging.getLogger("dot.canvas")
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+# package_manager.py -> canvas_runtime/ -> src/ -> project root
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _DEF_USER_SITE = _PROJECT_ROOT / "user_site"
 _MANIFEST_FILENAME = "__dotcanvas_installed__.json"
 
