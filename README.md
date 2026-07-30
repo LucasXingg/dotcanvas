@@ -37,17 +37,17 @@ docker run -d \
 
 ## 持久化画布与配置（镜像更新后不丢失）
 
-在 DotCanvas 中：
+目录职责：
 
-- **自定义画布**保存为 `canvas/<画布ID>.py`（Web 界面里创建/编辑时会写回磁盘）。
-- **服务配置与 API 令牌**保存在 `configs/`（如 `config.yaml`、`tokens.json`）。
-- **运行时安装的 Python 包**（视图里调用 `install_package(...)`）落在 `user_site/`。
+- **`canvas/`**：只存放你的画布文件（`*.py`）。框架代码（基类、视图、模板、管理器）在镜像内的 `src/canvas_runtime/`，**不会**被卷挂载覆盖。
+- **`configs/`**：服务配置与 API 令牌（如 `config.yaml`、`tokens.json`）。
+- **`user_site/`**：视图里调用 `install_package(...)` 时安装的 Python 包。
 
-镜像只提供程序与内置 demo 画布；真正属于你的数据必须挂到宿主机，否则更新镜像后会消失。
+若不挂载卷，这些数据只在容器可写层中；拉取新镜像并重建容器后会丢失。
 
 ### 推荐启动方式（挂载数据目录）
 
-若你是从本仓库部署，可直接挂载仓库里的 `configs/` 与 `canvas/`：
+从本仓库部署时，直接挂载仓库里的 `configs/` 与 `canvas/`：
 
 ```bash
 # 首次准备配置（仅一次）
@@ -61,7 +61,7 @@ docker run -d \
   ghcr.io/lucasxingg/dotcanvas:latest
 ```
 
-若你只有预构建镜像、本地还没有 `canvas/` 目录，可先从镜像拷出完整 `canvas`（含框架文件与 demo），再挂载：
+只有预构建镜像、本地还没有数据目录时：
 
 ```bash
 mkdir -p configs canvas
@@ -79,7 +79,7 @@ docker run -d \
   ghcr.io/lucasxingg/dotcanvas:latest
 ```
 
-此后在 UI 中新建的画布都会写到宿主机的 `canvas/`，重启或换容器不会丢。
+此后在 UI 中新建的画布都会写到宿主机的 `canvas/`。空的挂载目录也可以；服务启动时会自动补全 `canvas/__init__.py`。
 
 可选：若视图使用了 `install_package()`，可再挂载 `-v $(pwd)/user_site:/app/user_site`，避免重建容器后重新下载依赖。
 
@@ -99,32 +99,12 @@ docker run -d \
   ghcr.io/lucasxingg/dotcanvas:latest
 ```
 
-只要 `-v .../canvas:/app/canvas` 指向的是同一宿主机目录，你自定义的 `*.py` 画布文件会原样保留。
+只要 `-v .../canvas:/app/canvas` 指向同一宿主机目录，你的 `*.py` 画布会原样保留；新镜像里的框架更新（视图、基类等）会自动生效，无需再从镜像回拷框架文件。
 
 ### 注意事项
 
-- **必须挂载完整的 `canvas` 目录**，不能只挂某一个 `.py`。运行时依赖同目录下的 `_base_canvas.py`、`_canvas_template.py`、`views/`、`canvas_manager/` 等框架文件；挂载会覆盖镜像内的 `/app/canvas`。
-- **你的画布**：宿主机 `canvas/` 下不以 `_` 开头的 `*.py`（例如 `hello_world.py`）。请勿删除或覆盖这些文件。
-- **框架文件也可能随版本更新**：若新镜像改了 `views/` 或 `_base_canvas.py` 等，而你挂载的是旧的宿主机 `canvas/`，容器会继续用旧框架。更新后如遇异常，可从新镜像把框架文件同步回来，同时**保留自己的画布文件**：
-
-```bash
-docker create --name dotcanvas-new ghcr.io/lucasxingg/dotcanvas:latest
-# 备份当前挂载目录中的画布模块
-mkdir -p canvas-backup && cp canvas/*.py canvas-backup/ 2>/dev/null || true
-# 用新镜像中的 canvas 覆盖框架（含 views/ 等）
-docker cp dotcanvas-new:/app/canvas/. ./canvas/
-docker rm dotcanvas-new
-# 把备份里自己的画布拷回去（跳过以下划线开头的框架/模板文件）
-for f in canvas-backup/*.py; do
-  [ -f "$f" ] || continue
-  base=$(basename "$f")
-  case "$base" in
-    _*|__init__.py) ;; # 保留新镜像中的框架文件
-    *) cp "$f" "canvas/$base" ;;
-  esac
-done
-```
-
+- `canvas/` 下每个画布对应一个 `*.py` 文件（例如 `hello_world.py`）。请勿把框架代码放回该目录。
+- 若你仍保留着旧版镜像导出的 `canvas/`（内含 `_base_canvas.py`、`views/` 等），可以删掉这些遗留框架文件，只留下自己的画布 `*.py`；运行时一律使用镜像内的 `src/canvas_runtime/`。
 - `configs/` 含 API key 与令牌，请妥善保管挂载目录的权限。
 
 ## 手动构建 Docker 镜像部署
