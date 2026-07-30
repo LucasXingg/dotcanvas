@@ -26,21 +26,21 @@
 ---
 
 ## 总览
-DotCanvas 提供一个可定制的画布渲染与管理平台，后端基于 FastAPI，前端使用静态页面与 Fetch API 通信，渲染由 Pillow 完成。
+DotCanvas 提供一个可定制的画布渲染与管理平台，后端基于 FastAPI，前端为 Vite + React SPA（基路径 `/ui`），渲染由 Pillow 完成。
 
 ### 核心目录结构
-- `canvas/`：用户画布模块（每个画布一个 `*.py`），不含框架代码。
+- `canvas/`：用户画布模块（每个画布一个 `<画布ID>.py`），不含框架代码。
 - `src/canvas_runtime/`：画布框架（基类、模板、`views/`、`canvas_manager/`、运行时包安装）。
-- `configs/`：配置文件路径。
+- `frontend/`：Vite + React 管理界面（页面在 `frontend/src/pages/`，如 `DaemonPage.jsx`、`CanvasPage.jsx`、`ConfigPage.jsx`）。
+- `configs/`：配置文件路径（如 `config.yaml`、`tokens.json`）。
 - `assets/`：字体与其他静态资源（如 `font_manager.py`）。
 - `src/`：后台服务逻辑（`api.py`、`daemon.py`、`service_config.py` 等）以及上述 `canvas_runtime`。
-- `frontend/`：Vite + React 管理界面。
-- `server.py`：服务启动脚本
+- `server.py`：服务启动脚本；构建后的前端由后端挂载在 `/ui`。
 
 ### 开发提示
 - 项目尚未包含完整的自动化测试。
 - 画布模块的改动会即时写入磁盘，结合版本控制可回滚生成文件。
-- 前端默认主页文件为 `pages/daemon.html`，并通过 Fetch API 与 FastAPI 后端通信。
+- 管理界面入口为 `/` → 重定向至 `/ui/daemon`；本地需先在 `frontend/` 执行 `npm run build`，或使用 Vite 开发服务器（`npm run dev`，基路径 `/ui`）。
 - 画布尺寸固定为 296x152 像素，这是 Dot. 的硬件屏幕尺寸。
 
 ---
@@ -100,9 +100,11 @@ cp docs/view-doc-template.md docs/views/banner_view.md
 ---
 
 ## 画布文件结构
-- 画布文件位于 `canvas/` 目录，由程序根据用户操作自动生成或更新，无需手动创建。
+- 画布文件位于 `canvas/` 目录，由 `src/canvas_runtime/canvas_manager` 根据 UI/API 操作自动生成或更新，无需手动创建。
+- 每个画布对应一个独立文件 `canvas/<画布ID>.py`；文件名需与类内 `ID` 常量保持一致，且全局唯一。
+- 列举画布时扫描 `canvas/*.py`，跳过以下划线开头的文件以及 `__init__.py`。
+- 创建与保存都会基于 [`src/canvas_runtime/canvas_template.py`](src/canvas_runtime/canvas_template.py) 重新生成模块源码；重命名画布 ID 时写入新文件并删除旧文件。
 - 每个画布模块定义 `Canvas` 类和匹配的 `CONFIG` 配置，用于描述视图布局与默认参数。
-- 每个画布对应一个独立的文件，文件名需要与`ID`常量保持一致，此常量为全局唯一。
 
 ---
 
