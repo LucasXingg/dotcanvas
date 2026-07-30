@@ -85,6 +85,14 @@ def install_package(*packages: str) -> None:
         # logger.info("Packages %s already installed; skipping", normalized)
         return
 
+    logger.info("Installing packages %s into %s", to_install, user_site)
+    _run_pip_install(to_install, user_site)
+    importlib.invalidate_caches()
+    _save_manifest(manifest, installed.union(to_install))
+
+
+def _run_pip_install(packages: list[str], user_site: Path) -> None:
+    """Install packages with `python -m pip`, bootstrapping pip if needed."""
     cmd = [
         sys.executable,
         "-m",
@@ -93,13 +101,52 @@ def install_package(*packages: str) -> None:
         "--no-cache-dir",
         "--target",
         str(user_site),
+        *packages,
     ]
-    cmd.extend(to_install)
 
-    logger.info("Installing packages %s into %s", to_install, user_site)
-    subprocess.check_call(cmd)
-    importlib.invalidate_caches()
-    _save_manifest(manifest, installed.union(to_install))
+    try:
+        subprocess.check_call(cmd)
+        return
+    except subprocess.CalledProcessError as exc:
+        # uv-managed venvs often omit pip; bootstrap it once and retry.
+        if not _ensure_pip_available():
+            raise
+        logger.info("Retrying package install after bootstrapping pip")
+        try:
+            subprocess.check_call(cmd)
+        except subprocess.CalledProcessError:
+            raise exc from None
+
+
+def _ensure_pip_available() -> bool:
+    """Return True when `python -m pip` works, installing pip if necessary."""
+    probe = subprocess.run(
+        [sys.executable, "-m", "pip", "--version"],
+        capture_output=True,
+        check=False,
+    )
+    if probe.returncode == 0:
+        return True
+
+    logger.warning("pip is unavailable in %s; attempting bootstrap", sys.executable)
+    bootstrap = subprocess.run(
+        [sys.executable, "-m", "ensurepip", "--upgrade"],
+        capture_output=True,
+        check=False,
+    )
+    if bootstrap.returncode != 0:
+        logger.error(
+            "Failed to bootstrap pip via ensurepip: %s",
+            bootstrap.stderr.decode(errors="ignore").strip() or bootstrap.stdout.decode(errors="ignore").strip(),
+        )
+        return False
+
+    probe = subprocess.run(
+        [sys.executable, "-m", "pip", "--version"],
+        capture_output=True,
+        check=False,
+    )
+    return probe.returncode == 0
 
 
 def install_packages(packages: Iterable[str]) -> None:

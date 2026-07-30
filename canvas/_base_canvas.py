@@ -26,6 +26,7 @@ class _BaseCanvas():
         params_dict: dict[str, Any] = params or {}
 
         for view_builder in config["views"].values():
+            view_config = None
             try:
                 view_config = cls._invoke_view_builder(view_builder, params_dict)
                 view_cls = available_views.get(view_config["type"])
