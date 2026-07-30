@@ -9,6 +9,9 @@ wheels/
 # Virtual environments
 .venv
 
+# Runtime-installed packages for canvas views
+user_site/
+
 # IDE files
 .vscode/
 .idea/
