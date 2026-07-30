@@ -21,12 +21,111 @@ DotCanvas 是一个轻量级的可视化Dot.编辑工具。
 # 拉取镜像
 docker pull ghcr.io/lucasxingg/dotcanvas:latest
 
-# 运行容器，映射端口并挂载配置目录
-docker run -d -p 8000:8000 ghcr.io/lucasxingg/dotcanvas:latest
+# 运行容器（映射端口；建议同时挂载 configs 与 canvas，见下方「持久化」章节）
+docker run -d \
+  --name dotcanvas \
+  -p 8000:8000 \
+  -v $(pwd)/configs:/app/configs \
+  -v $(pwd)/canvas:/app/canvas \
+  ghcr.io/lucasxingg/dotcanvas:latest
 ```
 
 容器启动后，通过 <http://localhost:8000/> 访问管理界面。
 当你需要更新配置时，直接编辑宿主机 `configs/config.yaml` 并重启容器即可。
+
+> 若不挂载卷，画布与配置只存在于容器可写层中；拉取新镜像并重建容器后会全部丢失。请务必按下一节挂载数据卷。
+
+## 持久化画布与配置（镜像更新后不丢失）
+
+在 DotCanvas 中：
+
+- **自定义画布**保存为 `canvas/<画布ID>.py`（Web 界面里创建/编辑时会写回磁盘）。
+- **服务配置与 API 令牌**保存在 `configs/`（如 `config.yaml`、`tokens.json`）。
+- **运行时安装的 Python 包**（视图里调用 `install_package(...)`）落在 `user_site/`。
+
+镜像只提供程序与内置 demo 画布；真正属于你的数据必须挂到宿主机，否则更新镜像后会消失。
+
+### 推荐启动方式（挂载数据目录）
+
+若你是从本仓库部署，可直接挂载仓库里的 `configs/` 与 `canvas/`：
+
+```bash
+# 首次准备配置（仅一次）
+cp -n configs/config-example.yaml configs/config.yaml
+
+docker run -d \
+  --name dotcanvas \
+  -p 8000:8000 \
+  -v $(pwd)/configs:/app/configs \
+  -v $(pwd)/canvas:/app/canvas \
+  ghcr.io/lucasxingg/dotcanvas:latest
+```
+
+若你只有预构建镜像、本地还没有 `canvas/` 目录，可先从镜像拷出完整 `canvas`（含框架文件与 demo），再挂载：
+
+```bash
+mkdir -p configs canvas
+docker create --name dotcanvas-seed ghcr.io/lucasxingg/dotcanvas:latest
+docker cp dotcanvas-seed:/app/canvas/. ./canvas/
+docker cp dotcanvas-seed:/app/configs/config-example.yaml ./configs/config-example.yaml
+docker rm dotcanvas-seed
+cp -n configs/config-example.yaml configs/config.yaml
+
+docker run -d \
+  --name dotcanvas \
+  -p 8000:8000 \
+  -v $(pwd)/configs:/app/configs \
+  -v $(pwd)/canvas:/app/canvas \
+  ghcr.io/lucasxingg/dotcanvas:latest
+```
+
+此后在 UI 中新建的画布都会写到宿主机的 `canvas/`，重启或换容器不会丢。
+
+可选：若视图使用了 `install_package()`，可再挂载 `-v $(pwd)/user_site:/app/user_site`，避免重建容器后重新下载依赖。
+
+### 更新镜像时保留自己的画布
+
+```bash
+# 1. 拉取新镜像
+docker pull ghcr.io/lucasxingg/dotcanvas:latest
+
+# 2. 用相同的卷挂载重建容器
+docker stop dotcanvas && docker rm dotcanvas
+docker run -d \
+  --name dotcanvas \
+  -p 8000:8000 \
+  -v $(pwd)/configs:/app/configs \
+  -v $(pwd)/canvas:/app/canvas \
+  ghcr.io/lucasxingg/dotcanvas:latest
+```
+
+只要 `-v .../canvas:/app/canvas` 指向的是同一宿主机目录，你自定义的 `*.py` 画布文件会原样保留。
+
+### 注意事项
+
+- **必须挂载完整的 `canvas` 目录**，不能只挂某一个 `.py`。运行时依赖同目录下的 `_base_canvas.py`、`_canvas_template.py`、`views/`、`canvas_manager/` 等框架文件；挂载会覆盖镜像内的 `/app/canvas`。
+- **你的画布**：宿主机 `canvas/` 下不以 `_` 开头的 `*.py`（例如 `hello_world.py`）。请勿删除或覆盖这些文件。
+- **框架文件也可能随版本更新**：若新镜像改了 `views/` 或 `_base_canvas.py` 等，而你挂载的是旧的宿主机 `canvas/`，容器会继续用旧框架。更新后如遇异常，可从新镜像把框架文件同步回来，同时**保留自己的画布文件**：
+
+```bash
+docker create --name dotcanvas-new ghcr.io/lucasxingg/dotcanvas:latest
+# 备份当前挂载目录中的画布模块
+mkdir -p canvas-backup && cp canvas/*.py canvas-backup/ 2>/dev/null || true
+# 用新镜像中的 canvas 覆盖框架（含 views/ 等）
+docker cp dotcanvas-new:/app/canvas/. ./canvas/
+docker rm dotcanvas-new
+# 把备份里自己的画布拷回去（跳过以下划线开头的框架/模板文件）
+for f in canvas-backup/*.py; do
+  [ -f "$f" ] || continue
+  base=$(basename "$f")
+  case "$base" in
+    _*|__init__.py) ;; # 保留新镜像中的框架文件
+    *) cp "$f" "canvas/$base" ;;
+  esac
+done
+```
+
+- `configs/` 含 API key 与令牌，请妥善保管挂载目录的权限。
 
 ## 手动构建 Docker 镜像部署
 
@@ -40,8 +139,9 @@ cp configs/config-example.yaml configs/config.yaml
 # 构建镜像
 docker build -t dotcanvas .
 
-# 运行容器，映射端口并挂载配置目录
+# 运行容器，映射端口并挂载配置与画布目录（更新镜像后数据仍保留）
 docker run -d \
+  --name dotcanvas \
   -p 8000:8000 \
   -v $(pwd)/configs:/app/configs \
   -v $(pwd)/canvas:/app/canvas \
@@ -49,7 +149,7 @@ docker run -d \
 ```
 
 容器启动后，同样通过 <http://localhost:8000/> 访问管理界面。
-当你需要更新配置时，直接编辑宿主机 `configs/config.yaml` 并重启容器即可。
+当你需要更新配置时，直接编辑宿主机 `configs/config.yaml` 并重启容器即可。画布持久化与镜像更新步骤见上一节。
 
 ## 本地部署
 
