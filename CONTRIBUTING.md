@@ -26,20 +26,20 @@
 ---
 
 ## 总览
-DotCanvas 提供一个可定制的画布渲染与管理平台，后端基于 FastAPI，前端使用静态页面与 Fetch API 通信，渲染由 Pillow 完成。
+DotCanvas 提供一个可定制的画布渲染与管理平台，后端基于 FastAPI，前端为 Vite + React SPA（基路径 `/ui`），渲染由 Pillow 完成。
 
 ### 核心目录结构
-- `canvas/`：自定义画布与视图实现，含 `_base_canvas.py`、`views/` 等核心模块。
-- `pages/`：前端页面（例如 `daemon.html`、`canvas.html`、`config.html`）。
-- `configs/`：配置文件路径。
+- `canvas/`：画布框架与用户画布模块。含 `_base_canvas.py`、`_canvas_template.py`、`_package_manager.py`、`views/`、`canvas_manager/`；用户创建的画布落在同目录下的 `<画布ID>.py`。
+- `frontend/`：Vite + React 管理界面（页面在 `frontend/src/pages/`，如 `DaemonPage.jsx`、`CanvasPage.jsx`、`ConfigPage.jsx`）。
+- `configs/`：配置文件路径（如 `config.yaml`、`tokens.json`）。
 - `assets/`：字体与其他静态资源（如 `font_manager.py`）。
 - `src/`：后台服务逻辑（`api.py`、`daemon.py`、`service_config.py` 等）。
-- `server.py`：服务启动脚本
+- `server.py`：服务启动脚本；构建后的前端由后端挂载在 `/ui`。
 
 ### 开发提示
 - 项目尚未包含完整的自动化测试。
 - 画布模块的改动会即时写入磁盘，结合版本控制可回滚生成文件。
-- 前端默认主页文件为 `pages/daemon.html`，并通过 Fetch API 与 FastAPI 后端通信。
+- 管理界面入口为 `/` → 重定向至 `/ui/daemon`；本地需先在 `frontend/` 执行 `npm run build`，或使用 Vite 开发服务器（`npm run dev`，基路径 `/ui`）。
 - 画布尺寸固定为 296x152 像素，这是 Dot. 的硬件屏幕尺寸。
 
 ---
@@ -79,7 +79,7 @@ from .banner import BannerView
 
 __all__ = ["BannerView"]
 ```
-**注：** `Canvas`类会自动扫描`/canvas/views`路径下的模块，所以此步骤非必需，但能提升模块的可用性。
+**注：** `Canvas` 类会自动扫描 `canvas/views` 包下的模块，所以此步骤非必需，但能提升模块的可用性。
 
 ### 6. 编写视图文档
 从 [`docs/view-doc-template.md`](docs/view-doc-template.md) 开始，复制模板至`docs/views`目录下。例如创建横幅文档：
@@ -99,9 +99,11 @@ cp docs/view-doc-template.md docs/views/banner_view.md
 ---
 
 ## 画布文件结构
-- 画布文件位于 `canvas/` 目录，由程序根据用户操作自动生成或更新，无需手动创建。
+- 画布文件位于 `canvas/` 目录，由 `canvas/canvas_manager` 根据 UI/API 操作自动生成或更新，无需手动创建。
+- 每个画布对应一个独立文件 `canvas/<画布ID>.py`；文件名需与类内 `ID` 常量保持一致，且全局唯一。
+- 列举画布时扫描 `canvas/*.py`，跳过以下划线开头的框架文件以及 `__init__.py`（例如 `_base_canvas.py`、`_canvas_template.py`）。
+- 创建与保存都会基于 [`canvas/_canvas_template.py`](canvas/_canvas_template.py) 重新生成模块源码；重命名画布 ID 时写入新文件并删除旧文件。
 - 每个画布模块定义 `Canvas` 类和匹配的 `CONFIG` 配置，用于描述视图布局与默认参数。
-- 每个画布对应一个独立的文件，文件名需要与`ID`常量保持一致，此常量为全局唯一。
 
 ---
 

@@ -104,7 +104,7 @@ docker run -d \
 ### 注意事项
 
 - **必须挂载完整的 `canvas` 目录**，不能只挂某一个 `.py`。运行时依赖同目录下的 `_base_canvas.py`、`_canvas_template.py`、`views/`、`canvas_manager/` 等框架文件；挂载会覆盖镜像内的 `/app/canvas`。
-- **你的画布**：宿主机 `canvas/` 下不以 `_` 开头的 `*.py`（例如 `hello_world.py`）。请勿删除或覆盖这些文件。
+- **你的画布**：宿主机 `canvas/` 下不以 `_` 开头的 `*.py`（例如 `hello_world.py`）。仓库自带的 demo（如 `countdown_canvas.py`、`calendar_canvas.py`）也属于此类；更新镜像时请保留它们与你自己新建的画布。请勿删除或覆盖这些文件。
 - **框架文件也可能随版本更新**：若新镜像改了 `views/` 或 `_base_canvas.py` 等，而你挂载的是旧的宿主机 `canvas/`，容器会继续用旧框架。更新后如遇异常，可从新镜像把框架文件同步回来，同时**保留自己的画布文件**：
 
 ```bash
@@ -173,20 +173,9 @@ uv sync
 cp configs/config-example.yaml configs/config.yaml
 ```
 
-### 启动服务
-
-```bash
-# 激活虚拟环境
-source .venv/bin/activate
-
-# 启动服务器
-uvicorn server:app --reload
-```
-运行以上命令后，打开 <http://localhost:8000/> 访问管理界面。
-
 ### 构建前端资源
 
-全新的 Web 界面基于 Vite + React 实现，默认监听在 `/ui` 路径下。首次运行前需要安装前端依赖并生成静态资源：
+全新的 Web 界面基于 Vite + React 实现，默认监听在 `/ui` 路径下。**访问管理界面前**需要先安装前端依赖并生成静态资源：
 
 ```bash
 cd frontend
@@ -194,9 +183,21 @@ npm install
 npm run build
 ```
 
+### 启动服务
+
+```bash
+# 激活虚拟环境
+source .venv/bin/activate
+
+# 启动服务器（需已完成上一节的前端构建，否则 /ui 会返回 503）
+uvicorn server:app --reload
+```
+运行以上命令后，打开 <http://localhost:8000/> 访问管理界面（会重定向至 `/ui/daemon`）。
+
 开发时可以使用 Vite 开发服务器获得热更新体验：
 
 ```bash
+cd frontend
 npm run dev
 # 默认端口为 5173，可通过 http://localhost:5173/ui 访问
 ```
