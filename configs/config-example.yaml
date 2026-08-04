@@ -3,7 +3,7 @@
 api_key: "你的API密钥"
 devices:
 - name: 设备1
-  device_id: “你的设备ID”
+  device_id: "你的设备ID"
   schedules:
   # 任务示例
   - name: 新年倒计时

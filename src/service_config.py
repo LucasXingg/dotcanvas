@@ -1,18 +1,67 @@
 from __future__ import annotations
 
+import logging
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Dict, Iterator, Tuple
 
 import yaml
 
+logger = logging.getLogger("dot.config")
+
+_CONFIGS_DIR = Path(__file__).resolve().parents[1] / "configs"
+DEFAULT_CONFIG_PATH = _CONFIGS_DIR / "config.yaml"
+
+# Used when a Docker volume mounts an empty host `configs/` directory over
+# `/app/configs`, hiding the image's baked-in config.yaml / config-example.yaml.
+DEFAULT_CONFIG_TEMPLATE = """# 复制此文件为 config.yaml
+
+api_key: "你的API密钥"
+devices:
+- name: 设备1
+  device_id: "你的设备ID"
+  schedules:
+  # 任务示例
+  - name: 新年倒计时
+    canvas_id: countdown_canvas
+    cron: '0 0 * * *' # 每天午夜更新
+    params: {}
+"""
+
+
+def ensure_config_file(path: str | Path | None = None) -> Path:
+    """Ensure ``configs/config.yaml`` exists and is writable.
+
+    Empty volume mounts overlay the image's default configs directory. Create
+    ``config.yaml`` (and ``config-example.yaml`` when missing) so the daemon
+    and config UI can start without a manual ``cp`` on the host.
+    """
+
+    config_path = Path(path) if path else DEFAULT_CONFIG_PATH
+    config_dir = config_path.parent
+    config_dir.mkdir(parents=True, exist_ok=True)
+
+    example_path = config_dir / "config-example.yaml"
+    if not example_path.exists():
+        example_path.write_text(DEFAULT_CONFIG_TEMPLATE, encoding="utf-8")
+        logger.info("Created missing config example at %s", example_path)
+
+    if not config_path.exists():
+        # Prefer the on-disk example (may have been customized) over the
+        # embedded template when seeding a fresh config.yaml.
+        seed = example_path.read_text(encoding="utf-8")
+        config_path.write_text(seed, encoding="utf-8")
+        logger.info("Created missing config file at %s", config_path)
+
+    return config_path
+
 
 class ServercConfig:
 
-    DEFAULT_PATH = Path(__file__).resolve().parents[1] / "configs" / "config.yaml"
+    DEFAULT_PATH = DEFAULT_CONFIG_PATH
 
     def __init__(self, path: str | Path | None = None) -> None:
-        self.path = Path(path) if path else self.DEFAULT_PATH
+        self.path = ensure_config_file(path)
         self.cfg: Dict[str, Any] = {}
         self.load_config()
 
