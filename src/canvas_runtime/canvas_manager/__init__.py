@@ -4,6 +4,7 @@ from __future__ import annotations
 import ast
 import importlib
 import json
+import logging
 import textwrap
 import sys
 from dataclasses import dataclass
@@ -16,25 +17,65 @@ from PIL import Image
 from ..base_canvas import _BaseCanvas
 
 
+logger = logging.getLogger("dot.canvas")
+
 # canvas_manager/ -> canvas_runtime/ -> src/ -> project root
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 CANVAS_DIR = _PROJECT_ROOT / "canvas"
 CANVAS_TEMPLATE = Path(__file__).resolve().parents[1] / "canvas_template.py"
+# Seed copies live outside ``canvas/`` so empty Docker volume mounts still
+# have demo sources available (``-v host_canvas:/app/canvas`` hides image files).
+_EXAMPLE_CANVASES_DIR = Path(__file__).resolve().parents[1] / "example_canvases"
+_EXAMPLE_CANVAS_FILES = ("countdown_canvas.py", "calendar_canvas.py")
+
+
+def _canvas_dir_is_empty() -> bool:
+    """Return True when ``canvas/`` has no entries (typical empty volume mount)."""
+
+    try:
+        next(CANVAS_DIR.iterdir())
+    except StopIteration:
+        return True
+    return False
+
+
+def _seed_example_canvases() -> None:
+    """Copy bundled demo canvases into ``canvas/`` when missing."""
+
+    for filename in _EXAMPLE_CANVAS_FILES:
+        destination = CANVAS_DIR / filename
+        if destination.exists():
+            continue
+        source = _EXAMPLE_CANVASES_DIR / filename
+        if not source.exists():
+            logger.warning("Example canvas seed missing: %s", source)
+            continue
+        destination.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+        logger.info("Seeded example canvas at %s", destination)
 
 
 def _ensure_canvas_package() -> None:
     """Ensure ``canvas/`` exists and is importable as a package.
 
     Docker volume mounts may overlay an empty host directory that lacks
-    ``__init__.py``; create a minimal one so ``import canvas.<id>`` works.
+    ``__init__.py`` (and the image's demo canvases); create a minimal
+    ``__init__.py`` and, when the folder is empty, seed the two example
+    canvases so ``import canvas.<id>`` and the UI both work out of the box.
     """
 
     CANVAS_DIR.mkdir(parents=True, exist_ok=True)
+    is_empty = _canvas_dir_is_empty()
+
     init_path = CANVAS_DIR / "__init__.py"
     if not init_path.exists():
         init_path.write_text(
-            '"""User canvas modules. Framework code lives in src.canvas_runtime."""\n'
+            '"""User canvas modules. Framework code lives in src.canvas_runtime."""\n',
+            encoding="utf-8",
         )
+        logger.info("Created missing canvas package init at %s", init_path)
+
+    if is_empty:
+        _seed_example_canvases()
 
 
 _ensure_canvas_package()

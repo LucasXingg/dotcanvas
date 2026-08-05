@@ -74,7 +74,7 @@ docker run -d \
   ghcr.io/lucasxingg/dotcanvas:latest
 ```
 
-此后在 UI 中新建的画布都会写到宿主机的 `canvas/`。空的挂载目录也可以：服务启动时会自动补全 `canvas/__init__.py`，以及 `configs/config.yaml`（可再在配置页填入真实 API Key / 设备 ID）。
+此后在 UI 中新建的画布都会写到宿主机的 `canvas/`。空的挂载目录也可以：服务启动时会自动补全 `canvas/__init__.py`、两个示例画布（`countdown_canvas.py`、`calendar_canvas.py`），以及 `configs/config.yaml`（可再在配置页填入真实 API Key / 设备 ID）。
 
 可选：若视图使用了 `install_package()`，可再挂载 `-v $(pwd)/user_site:/app/user_site`，避免重建容器后重新下载依赖。
 
