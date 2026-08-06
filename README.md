@@ -191,6 +191,7 @@ npm run dev
 - 实时预览只会在保存修改后（点击`保存更改`按钮或使用快捷键`command + s`）更新。
 - [视图文档](docs/views/index.md)
 - 如果需要使用额外的包，可以使用`install_package()`方法来安装一个或多个包，例如`install_package("numpy", "pandas")`
+- 更完整的说明见文档目录：[界面说明](docs/ui-overview.md)、[视图脚本进阶](docs/view-scripts.md)（也可在 Web 控制台 **文档** 页浏览）。
 
 ## 配置管理
 - API密钥：在 Dot. APP 中生成
@@ -201,7 +202,7 @@ npm run dev
     - 任务名称：随意。
     - 画布ID：要推送的画布的 画布ID。
     - Cron表达式：推送定时（[Cron 表达式生成器](https://www.uptimia.com/cron-expression-generator)）。
-    - 参数：暂时没有用。
+    - 参数：JSON 对象，渲染画布时传入视图构建函数（见 [视图脚本进阶](docs/view-scripts.md)）。
 - 修改配置后需要在进程控制页面重启守护进程。
 
 # 故障排除

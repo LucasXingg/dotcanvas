@@ -21,7 +21,11 @@ from src.canvas_runtime.canvas_manager import (
     render_canvas,
     save_canvas,
 )
-from src.canvas_runtime.package_manager import ensure_user_site
+from src.canvas_runtime.package_manager import (
+    begin_install_tracking,
+    consume_install_events,
+    ensure_user_site,
+)
 
 ensure_user_site()
 
@@ -37,6 +41,8 @@ app = FastAPI()
 
 FRONTEND_DIST = Path(__file__).resolve().parent / "frontend" / "dist"
 FRONTEND_ASSETS = FRONTEND_DIST / "assets"
+DOCS_ROOT = Path(__file__).resolve().parent / "docs"
+INSTALLED_PACKAGES_HEADER = "X-Installed-Packages"
 
 NO_BROWSER_MODE = os.getenv("DOTCANVAS_NO_BROWSER", "").strip().lower() in {"1", "true", "yes", "on"}
 
@@ -183,6 +189,54 @@ def _parse_params_json(payload: str | None) -> dict[str, Any]:
     return data
 
 
+def _resolve_docs_path(relative: str) -> Path:
+    """Resolve a docs-relative path, rejecting traversal outside DOCS_ROOT."""
+    cleaned = relative.strip().lstrip("/")
+    if not cleaned:
+        raise HTTPException(status_code=404, detail="Document not found")
+    candidate = (DOCS_ROOT / cleaned).resolve()
+    try:
+        candidate.relative_to(DOCS_ROOT.resolve())
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Document not found") from exc
+    if not candidate.exists() or not candidate.is_file():
+        raise HTTPException(status_code=404, detail="Document not found")
+    if candidate.suffix.lower() != ".md":
+        raise HTTPException(status_code=404, detail="Document not found")
+    return candidate
+
+
+def _list_doc_files() -> list[dict[str, str]]:
+    if not DOCS_ROOT.exists():
+        return []
+    docs: list[dict[str, str]] = []
+    for path in sorted(DOCS_ROOT.rglob("*.md")):
+        rel = path.relative_to(DOCS_ROOT).as_posix()
+        title = path.stem.replace("-", " ").replace("_", " ").strip() or rel
+        try:
+            first_line = path.read_text(encoding="utf-8").lstrip().splitlines()
+            if first_line and first_line[0].startswith("#"):
+                title = first_line[0].lstrip("#").strip() or title
+        except OSError:
+            pass
+        docs.append({"path": rel, "title": title})
+    return docs
+
+
+def _with_installed_packages(payload: dict[str, Any]) -> dict[str, Any]:
+    packages = consume_install_events()
+    if packages:
+        payload = {**payload, "installed_packages": packages}
+    return payload
+
+
+def _installed_packages_headers() -> dict[str, str]:
+    packages = consume_install_events()
+    if not packages:
+        return {}
+    return {INSTALLED_PACKAGES_HEADER: ",".join(packages)}
+
+
 # MARK: - Payload models
 
 class ViewPayload(BaseModel):
@@ -291,20 +345,25 @@ def get_canvas(
     _: None = Depends(require_frontend_enabled),
 ):
     try:
+        begin_install_tracking()
         definition = load_canvas(canvas_id)
         params_dict = _parse_params_json(params)
         view_configs = load_view_configs(canvas_id, params=params_dict)
     except CanvasNotFoundError as exc:
+        consume_install_events()
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except CanvasManagerError as exc:
+        consume_install_events()
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    return {
-        "id": definition.canvas_id,
-        "name": definition.name,
-        "views": [{"id": view.view_id, "code": view.code} for view in definition.views],
-        "view_configs": view_configs,
-    }
+    return _with_installed_packages(
+        {
+            "id": definition.canvas_id,
+            "name": definition.name,
+            "views": [{"id": view.view_id, "code": view.code} for view in definition.views],
+            "view_configs": view_configs,
+        }
+    )
 
 
 @app.post("/canvases")
@@ -342,13 +401,20 @@ def update_canvas(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     params_dict = _parse_params_json(params)
-    view_configs = load_view_configs(updated.canvas_id, params=params_dict)
-    return {
-        "id": updated.canvas_id,
-        "name": updated.name,
-        "views": [{"id": view.view_id, "code": view.code} for view in updated.views],
-        "view_configs": view_configs,
-    }
+    begin_install_tracking()
+    try:
+        view_configs = load_view_configs(updated.canvas_id, params=params_dict)
+    except CanvasManagerError as exc:
+        consume_install_events()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _with_installed_packages(
+        {
+            "id": updated.canvas_id,
+            "name": updated.name,
+            "views": [{"id": view.view_id, "code": view.code} for view in updated.views],
+            "view_configs": view_configs,
+        }
+    )
 
 
 @app.get("/canvases/{canvas_id}/view-configs")
@@ -358,13 +424,16 @@ def get_canvas_view_configs(
     _: None = Depends(require_frontend_enabled),
 ):
     try:
+        begin_install_tracking()
         configs = load_view_configs(canvas_id, params=_parse_params_json(params))
     except CanvasNotFoundError as exc:
+        consume_install_events()
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except CanvasManagerError as exc:
+        consume_install_events()
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    return {"view_configs": configs}
+    return _with_installed_packages({"view_configs": configs})
 
 
 @app.get("/canvases/{canvas_id}/preview")
@@ -374,21 +443,54 @@ def preview_canvas(
     _: None = Depends(require_frontend_enabled),
 ):
     try:
+        begin_install_tracking()
         image = render_canvas(canvas_id, params=_parse_params_json(params))
     except CanvasNotFoundError as exc:
+        consume_install_events()
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except CanvasManagerError as exc:
+        consume_install_events()
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     buffer = BytesIO()
     image.save(buffer, format="PNG")
     buffer.seek(0)
-    return StreamingResponse(buffer, media_type="image/png")
+    headers = _installed_packages_headers()
+    # Allow the browser to read the custom header from same-origin fetches.
+    if headers:
+        headers["Access-Control-Expose-Headers"] = INSTALLED_PACKAGES_HEADER
+    return StreamingResponse(buffer, media_type="image/png", headers=headers)
 
 
 @app.get("/views")
 def get_available_views(_: None = Depends(require_frontend_enabled)):
     return {"views": list_available_views()}
+
+
+# MARK: - Documentation
+
+@app.get("/documentation")
+def list_documentation(_: None = Depends(require_frontend_enabled)):
+    return {"docs": _list_doc_files()}
+
+
+@app.get("/documentation/{doc_path:path}")
+def get_documentation(doc_path: str, _: None = Depends(require_frontend_enabled)):
+    path = _resolve_docs_path(doc_path)
+    try:
+        content = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail="Failed to read document") from exc
+    title = path.stem
+    for line in content.lstrip().splitlines():
+        if line.startswith("#"):
+            title = line.lstrip("#").strip() or title
+            break
+    return {
+        "path": path.relative_to(DOCS_ROOT).as_posix(),
+        "title": title,
+        "content": content,
+    }
 
 # MARK: - Daemon config
 
