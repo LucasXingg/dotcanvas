@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { useTranslation } from '../i18n/LanguageContext.jsx';
-import { useToast } from '../components/ToastProvider.jsx';
+import {
+  notifyInstalledPackages,
+  readInstalledPackagesHeader,
+  useToast,
+} from '../components/ToastProvider.jsx';
 
 const DEFAULT_STATUS = { key: 'status.selectCanvas', params: {}, type: 'info', raw: null };
 
@@ -18,7 +22,7 @@ function isPythonIdentifier(value) {
 
 export default function CanvasPage() {
   const { t } = useTranslation();
-  const { notify } = useToast();
+  const { notify, showMessageBox } = useToast();
   const [availableViews, setAvailableViews] = useState([]);
   const [availableViewMap, setAvailableViewMap] = useState(new Map());
   const [canvases, setCanvases] = useState([]);
@@ -152,6 +156,7 @@ export default function CanvasPage() {
         setPreviewParamsText('{}');
       }
       setPreviewParamsError(null);
+      notifyInstalledPackages(showMessageBox, t, data.installed_packages);
       if (!silent) {
         setStatus({ key: 'status.canvasLoaded', params: { name: data.name || data.id }, type: 'success', raw: null });
       }
@@ -216,6 +221,7 @@ export default function CanvasPage() {
       setCanvasName(data.name || '');
       setViews(Array.isArray(data.views) ? data.views.map((view) => ({ ...view })) : []);
       setViewConfigs(Array.isArray(data.view_configs) ? data.view_configs : []);
+      notifyInstalledPackages(showMessageBox, t, data.installed_packages);
       setStatus({ key: 'status.saveSuccess', params: {}, type: 'success', raw: null });
       await fetchCanvases(data.id);
       refreshPreview(data.id);
@@ -314,6 +320,7 @@ export default function CanvasPage() {
       throw new Error(data.detail || response.statusText || 'Failed to load view configs');
     }
     setViewConfigs(Array.isArray(data.view_configs) ? data.view_configs : []);
+    notifyInstalledPackages(showMessageBox, t, data.installed_packages);
   }
 
   async function refreshPreview(idOverride) {
@@ -343,6 +350,7 @@ export default function CanvasPage() {
         const payload = await response.json().catch(() => ({}));
         throw new Error(payload.detail || response.statusText || 'Preview failed');
       }
+      notifyInstalledPackages(showMessageBox, t, readInstalledPackagesHeader(response));
       setPreviewUrl(previewEndpoint);
       await fetchViewConfigsWithParams(id, paramsObject);
       setStatus({ key: 'status.previewReady', params: {}, type: 'success', raw: null });

@@ -4,8 +4,10 @@ import CanvasPage from './pages/CanvasPage.jsx';
 import DaemonPage from './pages/DaemonPage.jsx';
 import ConfigPage from './pages/ConfigPage.jsx';
 import TokensPage from './pages/TokensPage.jsx';
+import DocsPage from './pages/DocsPage.jsx';
 import { useTranslation } from './i18n/LanguageContext.jsx';
 import { ToastProvider, useToast } from './components/ToastProvider.jsx';
+
 
 function LanguageSelector() {
   const { language, setLanguage, t } = useTranslation();
@@ -38,6 +40,7 @@ function Navigation() {
     { to: '/daemon', label: t('nav.daemon') },
     { to: '/config', label: t('nav.config') },
     { to: '/tokens', label: t('nav.tokens') },
+    { to: '/docs', label: t('nav.docs') },
   ];
 
   return (
@@ -48,7 +51,9 @@ function Navigation() {
           to={item.to}
           className={({ isActive }) =>
             `nav-link${
-              isActive || (location.pathname === '/' && item.to === '/daemon')
+              isActive
+              || (location.pathname === '/' && item.to === '/daemon')
+              || (item.to === '/docs' && location.pathname.startsWith('/docs'))
                 ? ' active'
                 : ''
             }`
@@ -76,6 +81,9 @@ function Shell() {
     if (path.startsWith('/tokens')) {
       return { title: t('page.tokens.title'), subtitle: t('page.tokens.subtitle') };
     }
+    if (path.startsWith('/docs')) {
+      return { title: t('page.docs.title'), subtitle: t('page.docs.subtitle') };
+    }
     return { title: t('page.daemon.title'), subtitle: t('page.daemon.subtitle') };
   }, [location.pathname, t]);
 
@@ -100,6 +108,8 @@ function Shell() {
           <Route path="/daemon" element={<DaemonPage />} />
           <Route path="/config" element={<ConfigPage />} />
           <Route path="/tokens" element={<TokensPage />} />
+          <Route path="/docs" element={<DocsPage />} />
+          <Route path="/docs/*" element={<DocsPage />} />
         </Routes>
       </main>
     </div>
