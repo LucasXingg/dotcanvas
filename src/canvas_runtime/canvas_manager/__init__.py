@@ -193,8 +193,10 @@ def save_canvas(
 
     try:
         existing = load_canvas(canvas_id)
-    except CanvasManagerError:
+    except CanvasManagerError as exc:
         # Recover canvases previously written with invalid syntax (e.g. spaced view IDs).
+        if not isinstance(exc.__cause__, SyntaxError):
+            raise
         path = CANVAS_DIR / f"{canvas_id}.py"
         if not path.exists():
             raise
