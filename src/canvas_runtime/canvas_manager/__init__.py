@@ -35,9 +35,9 @@ def _ensure_identifier(value: str, *, label: str) -> str:
         raise CanvasManagerError(f"{label} cannot be empty")
     if not trimmed.isidentifier() or keyword.iskeyword(trimmed):
         raise CanvasManagerError(
-            f"{label} '{trimmed}' must be a valid Python identifier "
-            "(letters, digits, and underscores only; cannot start with a digit; "
-            "cannot be a reserved keyword). Example: hero_square"
+            f"'{label}' '{trimmed}' must be a valid Python identifier "
+            "(e.g., letters, digits, underscores; cannot start with a digit; "
+            "cannot be a reserved keyword). Note: Unicode characters are allowed." 
         )
     return trimmed
 
