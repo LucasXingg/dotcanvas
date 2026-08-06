@@ -4,6 +4,8 @@ from __future__ import annotations
 import ast
 import importlib
 import json
+import keyword
+import re
 import textwrap
 import sys
 from dataclasses import dataclass
@@ -20,6 +22,39 @@ from ..base_canvas import _BaseCanvas
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 CANVAS_DIR = _PROJECT_ROOT / "canvas"
 CANVAS_TEMPLATE = Path(__file__).resolve().parents[1] / "canvas_template.py"
+
+_NON_IDENTIFIER_RE = re.compile(r"[^0-9A-Za-z_]+")
+_MULTI_UNDERSCORE_RE = re.compile(r"_+")
+
+
+def _ensure_identifier(value: str, *, label: str) -> str:
+    """Require ``value`` to be a valid, non-keyword Python identifier."""
+
+    trimmed = value.strip()
+    if not trimmed:
+        raise CanvasManagerError(f"{label} cannot be empty")
+    if not trimmed.isidentifier() or keyword.iskeyword(trimmed):
+        raise CanvasManagerError(
+            f"'{label}' '{trimmed}' must be a valid Python identifier "
+            "(e.g., letters, digits, underscores; cannot start with a digit; "
+            "cannot be a reserved keyword). Note: Unicode characters are allowed." 
+        )
+    return trimmed
+
+
+def slugify_identifier(value: str, *, label: str = "ID") -> str:
+    """Convert a human label into a valid Python identifier."""
+
+    cleaned = _MULTI_UNDERSCORE_RE.sub("_", _NON_IDENTIFIER_RE.sub("_", value.strip())).strip("_")
+    if not cleaned:
+        raise CanvasManagerError(
+            f"{label} must contain letters or digits so a valid Python identifier can be derived"
+        )
+    if cleaned[0].isdigit():
+        cleaned = f"canvas_{cleaned}"
+    if keyword.iskeyword(cleaned):
+        cleaned = f"{cleaned}_canvas"
+    return _ensure_identifier(cleaned, label=label)
 
 
 def _ensure_canvas_package() -> None:
@@ -98,7 +133,13 @@ def load_canvas(canvas_id: str) -> CanvasDefinition:
 
     path = _canvas_file(canvas_id)
     source = path.read_text()
-    module_ast = ast.parse(source)
+    try:
+        module_ast = ast.parse(source)
+    except SyntaxError as exc:
+        raise CanvasManagerError(
+            f"Canvas '{canvas_id}' contains invalid Python syntax "
+            f"(line {exc.lineno}): {exc.msg}"
+        ) from exc
 
     canvas_class = _find_canvas_class(module_ast)
     class_id = _extract_class_id(canvas_class)
@@ -123,8 +164,13 @@ def load_canvas(canvas_id: str) -> CanvasDefinition:
 
 
 def create_canvas(canvas_id: str, name: str) -> CanvasDefinition:
-    """Create a new canvas module from the template."""
+    """Create a new canvas module from the template.
 
+    ``canvas_id`` is slugified into a valid Python identifier so human-readable
+    names (e.g. ``"Agent Usage"``) still produce an importable module.
+    """
+
+    canvas_id = slugify_identifier(canvas_id, label="Canvas ID")
     destination = CANVAS_DIR / f"{canvas_id}.py"
     if destination.exists():
         raise CanvasManagerError(f"Canvas '{canvas_id}' already exists")
@@ -145,13 +191,35 @@ def save_canvas(
 ) -> CanvasDefinition:
     """Persist updates to a canvas module."""
 
-    existing = load_canvas(canvas_id)
+    try:
+        existing = load_canvas(canvas_id)
+    except CanvasManagerError as exc:
+        # Recover canvases previously written with invalid syntax (e.g. spaced view IDs).
+        if not isinstance(exc.__cause__, SyntaxError):
+            raise
+        path = CANVAS_DIR / f"{canvas_id}.py"
+        if not path.exists():
+            raise
+        existing = CanvasDefinition(canvas_id=canvas_id, name=name, views=[])
     existing.name = name
-    existing.views = [ViewDefinition(view_id=v["id"], code=v["code"]) for v in views]
+    validated_views: List[ViewDefinition] = []
+    for view in views:
+        view_id = _ensure_identifier(str(view.get("id", "")), label="View ID")
+        validated_views.append(ViewDefinition(view_id=view_id, code=view["code"]))
+    existing.views = validated_views
 
-    target_canvas_id = new_canvas_id.strip() if new_canvas_id else canvas_id
-    if not target_canvas_id:
+    target_raw = new_canvas_id.strip() if new_canvas_id else canvas_id
+    if not target_raw:
         raise CanvasManagerError("Canvas ID cannot be empty")
+    if new_canvas_id is not None:
+        # Explicit renames must already be valid identifiers.
+        target_canvas_id = _ensure_identifier(target_raw, label="Canvas ID")
+    else:
+        # Migrate legacy canvas IDs that are not valid Python identifiers.
+        try:
+            target_canvas_id = _ensure_identifier(target_raw, label="Canvas ID")
+        except CanvasManagerError:
+            target_canvas_id = slugify_identifier(target_raw, label="Canvas ID")
 
     rename_required = target_canvas_id != canvas_id
     if rename_required:
@@ -223,9 +291,14 @@ def _load_canvas_module(canvas_id: str) -> ModuleType:
     module_name = f"canvas.{canvas_id}"
     try:
         module = importlib.import_module(module_name)
+        return importlib.reload(module)
     except ModuleNotFoundError as exc:
         raise CanvasNotFoundError(f"Canvas '{canvas_id}' cannot be imported") from exc
-    return importlib.reload(module)
+    except SyntaxError as exc:
+        raise CanvasManagerError(
+            f"Canvas '{canvas_id}' contains invalid Python syntax "
+            f"(line {exc.lineno}): {exc.msg}"
+        ) from exc
 
 
 def _render_canvas_source(definition: CanvasDefinition, template_source: str) -> str:
@@ -236,7 +309,8 @@ def _render_canvas_source(definition: CanvasDefinition, template_source: str) ->
     if not marker:
         raise CanvasManagerError("Invalid canvas template: missing Canvas class definition")
 
-    preamble = preamble.replace("new_canvas", definition.canvas_id)
+    canvas_id = _ensure_identifier(definition.canvas_id, label="Canvas ID")
+    preamble = preamble.replace("new_canvas", canvas_id)
     preamble = preamble.rstrip() + "\n\n"
     header = f"{preamble}{marker}\n\n"
 
@@ -244,11 +318,12 @@ def _render_canvas_source(definition: CanvasDefinition, template_source: str) ->
 
     view_sections = []
     for view in definition.views:
+        view_id = _ensure_identifier(view.view_id, label="View ID")
         body = view.code.rstrip("\n") + "\n"
         indented_body = textwrap.indent(body, " " * 8)
         section = (
             f"    @staticmethod\n"
-            f"    def {view.view_id}(params: dict | None = None) -> dict:\n"
+            f"    def {view_id}(params: dict | None = None) -> dict:\n"
             f"{indented_body}"
         )
         view_sections.append(section)
@@ -260,14 +335,15 @@ def _render_canvas_source(definition: CanvasDefinition, template_source: str) ->
 
     config_view_lines = []
     for view in definition.views:
-        config_view_lines.append(f'        "{view.view_id}": Canvas.{view.view_id},')
+        view_id = _ensure_identifier(view.view_id, label="View ID")
+        config_view_lines.append(f'        "{view_id}": Canvas.{view_id},')
     if config_view_lines:
         config_views = "\n" + "\n".join(config_view_lines) + "\n    "
     else:
         config_views = ""
 
     rendered = (
-        f"{header}    ID = {json.dumps(definition.canvas_id)}\n\n"
+        f"{header}    ID = {json.dumps(canvas_id)}\n\n"
         "    @classmethod\n"
         "    def render(cls, params: dict | None = None) -> Image.Image:\n"
         "        return cls._render(CONFIG, params=params)\n\n"
@@ -279,6 +355,13 @@ def _render_canvas_source(definition: CanvasDefinition, template_source: str) ->
         "    img = Canvas.render()\n"
         "    img.show()\n"
     )
+    try:
+        ast.parse(rendered)
+    except SyntaxError as exc:
+        raise CanvasManagerError(
+            f"Generated canvas source is invalid Python (line {exc.lineno}): {exc.msg}. "
+            "Check that view builder bodies are valid Python."
+        ) from exc
     return rendered
 
 
