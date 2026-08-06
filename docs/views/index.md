@@ -13,4 +13,4 @@
 - [TriangleView](triangle_view.md) — 可配置方向的三角形指示元素。
 - [WeatherView](weather_view.md) — 卡片式天气信息展示。
 
-> 如果新增视图，请先查看 [`view-doc-template.md`](../view-doc-template.md) 并据此补充文档。
+> 如果新增视图，请参考仓库中的 `docs/view-doc-template.md` 与 [贡献指南](../../CONTRIBUTING.md) 补充文档。

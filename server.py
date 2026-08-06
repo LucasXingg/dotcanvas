@@ -189,6 +189,12 @@ def _parse_params_json(payload: str | None) -> dict[str, Any]:
     return data
 
 
+def _is_docs_template(path: Path) -> bool:
+    """Return True for contributor-only doc templates (not shown in the UI)."""
+    stem = path.stem.lower()
+    return stem.endswith("-template") or stem.endswith("_template") or stem == "template"
+
+
 def _resolve_docs_path(relative: str) -> Path:
     """Resolve a docs-relative path, rejecting traversal outside DOCS_ROOT."""
     cleaned = relative.strip().lstrip("/")
@@ -203,6 +209,8 @@ def _resolve_docs_path(relative: str) -> Path:
         raise HTTPException(status_code=404, detail="Document not found")
     if candidate.suffix.lower() != ".md":
         raise HTTPException(status_code=404, detail="Document not found")
+    if _is_docs_template(candidate):
+        raise HTTPException(status_code=404, detail="Document not found")
     return candidate
 
 
@@ -211,6 +219,8 @@ def _list_doc_files() -> list[dict[str, str]]:
         return []
     docs: list[dict[str, str]] = []
     for path in sorted(DOCS_ROOT.rglob("*.md")):
+        if _is_docs_template(path):
+            continue
         rel = path.relative_to(DOCS_ROOT).as_posix()
         title = path.stem.replace("-", " ").replace("_", " ").strip() or rel
         try:
