@@ -40,7 +40,7 @@ docker run -d \
 目录职责：
 
 - **`canvas/`**：只存放你的画布文件（`*.py`）。框架代码（基类、视图、模板、管理器）在镜像内的 `src/canvas_runtime/`，**不会**被卷挂载覆盖。
-- **`configs/`**：服务配置与 API 令牌（如 `config.yaml`、`tokens.json`）。
+- **`configs/`**：服务配置与 API 令牌（如 `config.yaml`、`tokens.json`）。空目录也可以挂载；启动时会自动生成 `config.yaml` / `config-example.yaml`。
 - **`user_site/`**：视图里调用 `install_package(...)` 时安装的 Python 包。
 
 若不挂载卷，这些数据只在容器可写层中；拉取新镜像并重建容器后会丢失。
@@ -50,7 +50,7 @@ docker run -d \
 从本仓库部署时，直接挂载仓库里的 `configs/` 与 `canvas/`：
 
 ```bash
-# 首次准备配置（仅一次）
+# 可选：预先准备配置（不复制也没关系，容器会自动生成默认 config.yaml）
 cp -n configs/config-example.yaml configs/config.yaml
 
 docker run -d \
@@ -65,11 +65,6 @@ docker run -d \
 
 ```bash
 mkdir -p configs canvas
-docker create --name dotcanvas-seed ghcr.io/lucasxingg/dotcanvas:latest
-docker cp dotcanvas-seed:/app/canvas/. ./canvas/
-docker cp dotcanvas-seed:/app/configs/config-example.yaml ./configs/config-example.yaml
-docker rm dotcanvas-seed
-cp -n configs/config-example.yaml configs/config.yaml
 
 docker run -d \
   --name dotcanvas \
@@ -79,7 +74,7 @@ docker run -d \
   ghcr.io/lucasxingg/dotcanvas:latest
 ```
 
-此后在 UI 中新建的画布都会写到宿主机的 `canvas/`。空的挂载目录也可以；服务启动时会自动补全 `canvas/__init__.py`。
+此后在 UI 中新建的画布都会写到宿主机的 `canvas/`。空的挂载目录也可以：服务启动时会自动补全 `canvas/__init__.py`、两个示例画布（`countdown_canvas.py`、`calendar_canvas.py`），以及 `configs/config.yaml`（可再在配置页填入真实 API Key / 设备 ID）。
 
 可选：若视图使用了 `install_package()`，可再挂载 `-v $(pwd)/user_site:/app/user_site`，避免重建容器后重新下载依赖。
 
