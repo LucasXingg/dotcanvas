@@ -5,6 +5,17 @@ import { useToast } from '../components/ToastProvider.jsx';
 
 const DEFAULT_STATUS = { key: 'status.selectCanvas', params: {}, type: 'info', raw: null };
 
+const PYTHON_KEYWORDS = new Set([
+  'False', 'None', 'True', 'and', 'as', 'assert', 'async', 'await', 'break',
+  'case', 'class', 'continue', 'def', 'del', 'elif', 'else', 'except', 'finally',
+  'for', 'from', 'global', 'if', 'import', 'in', 'is', 'lambda', 'match', 'nonlocal',
+  'not', 'or', 'pass', 'raise', 'return', 'try', 'while', 'with', 'yield',
+]);
+
+function isPythonIdentifier(value) {
+  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(value) && !PYTHON_KEYWORDS.has(value);
+}
+
 export default function CanvasPage() {
   const { t } = useTranslation();
   const { notify } = useToast();
@@ -169,12 +180,25 @@ export default function CanvasPage() {
       setStatus({ key: 'status.canvasIdEmpty', params: {}, type: 'error', raw: null });
       return;
     }
+    const trimmedCanvasId = canvasIdentifier.trim();
+    const renaming = trimmedCanvasId !== selectedCanvasId;
+    // Allow saving a legacy canvas whose ID still has spaces; the backend
+    // migrates it. Reject only when the user explicitly renames to an invalid ID.
+    if (renaming && !isPythonIdentifier(trimmedCanvasId)) {
+      setStatus({ key: 'status.canvasIdInvalid', params: { id: trimmedCanvasId }, type: 'error', raw: null });
+      return;
+    }
+    const invalidView = views.find((view) => !isPythonIdentifier(view.id));
+    if (invalidView) {
+      setStatus({ key: 'status.viewIdInvalid', params: { id: invalidView.id }, type: 'error', raw: null });
+      return;
+    }
     const payload = {
       name: canvasName,
       views: views.map((view) => ({ id: view.id, code: view.code })),
     };
-    if (canvasIdentifier.trim() !== selectedCanvasId) {
-      payload.new_id = canvasIdentifier.trim();
+    if (renaming) {
+      payload.new_id = trimmedCanvasId;
     }
     setSaving(true);
     try {
@@ -238,6 +262,10 @@ export default function CanvasPage() {
     const selectedType = newViewType || availableViews[0]?.type;
     if (!trimmedId || !selectedType) {
       setStatus({ key: 'status.addViewMissing', params: {}, type: 'error', raw: null });
+      return;
+    }
+    if (!isPythonIdentifier(trimmedId)) {
+      setStatus({ key: 'status.viewIdInvalid', params: { id: trimmedId }, type: 'error', raw: null });
       return;
     }
     if (views.some((view) => view.id === trimmedId)) {

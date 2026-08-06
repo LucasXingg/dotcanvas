@@ -292,11 +292,13 @@ def get_canvas(
 ):
     try:
         definition = load_canvas(canvas_id)
+        params_dict = _parse_params_json(params)
+        view_configs = load_view_configs(canvas_id, params=params_dict)
     except CanvasNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except CanvasManagerError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    params_dict = _parse_params_json(params)
-    view_configs = load_view_configs(canvas_id, params=params_dict)
     return {
         "id": definition.canvas_id,
         "name": definition.name,
