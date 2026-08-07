@@ -100,23 +100,62 @@ def _run_pip_install(packages: list[str], user_site: Path) -> None:
         "pip",
         "install",
         "--no-cache-dir",
+        "--prefer-binary",
         "--target",
         str(user_site),
         *packages,
     ]
 
     try:
-        subprocess.check_call(cmd)
+        _invoke_pip(cmd)
         return
     except subprocess.CalledProcessError as exc:
         # uv-managed venvs often omit pip; bootstrap it once and retry.
         if not _ensure_pip_available():
-            raise
+            raise _pip_install_error(packages, exc) from exc
         logger.info("Retrying package install after bootstrapping pip")
         try:
-            subprocess.check_call(cmd)
-        except subprocess.CalledProcessError:
-            raise exc from None
+            _invoke_pip(cmd)
+        except subprocess.CalledProcessError as retry_exc:
+            raise _pip_install_error(packages, retry_exc) from retry_exc
+
+
+def _invoke_pip(cmd: list[str]) -> None:
+    """Run pip and surface its combined output on failure."""
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    if result.returncode == 0:
+        if result.stdout.strip():
+            logger.info(result.stdout.rstrip())
+        return
+    combined = "\n".join(
+        part for part in (result.stdout, result.stderr) if part and part.strip()
+    ).strip()
+    if combined:
+        logger.error(combined)
+    raise subprocess.CalledProcessError(
+        result.returncode,
+        cmd,
+        output=result.stdout,
+        stderr=result.stderr,
+    )
+
+
+def _pip_install_error(
+    packages: list[str], exc: subprocess.CalledProcessError
+) -> RuntimeError:
+    """Build a clearer error when pip cannot install into user_site."""
+    py_tag = f"{sys.version_info.major}.{sys.version_info.minor}"
+    detail = (exc.stderr or exc.output or "").strip()
+    if len(detail) > 2000:
+        detail = detail[-2000:]
+    hint = (
+        f"Failed to install {packages!r} into user_site for Python {py_tag}. "
+        "Prefer packages that publish binary wheels for this Python version; "
+        "source builds need a compiler (Docker images include build-essential)."
+    )
+    if detail:
+        return RuntimeError(f"{hint}\n\nPip output (tail):\n{detail}")
+    return RuntimeError(hint)
 
 
 def _ensure_pip_available() -> bool:
