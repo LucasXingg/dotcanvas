@@ -190,7 +190,7 @@ npm run dev
 - 对于视图构造函数，所有变量都需要包含在返回字典中，除非另行声明。
 - 实时预览只会在保存修改后（点击`保存更改`按钮或使用快捷键`command + s`）更新。
 - [视图文档](docs/views/index.md)
-- 如果需要使用额外的包，可以使用`install_package()`方法来安装一个或多个包，例如`install_package("numpy", "pandas")`
+- 如果需要使用额外的包，可以使用`install_package()`方法来安装一个或多个包，例如`install_package("numpy", "pandas")`。包会装到 `user_site/`；优先选择提供 Python 3.12 预编译 wheel 的包。Docker 镜像已包含编译工具，必要时可从源码构建 C 扩展。注意：PyPI 上的包名 `Github` 固定依赖过旧的 `aiohttp==3.8.1`，在 Python 3.12 上无法安装；访问 GitHub API 请使用 `install_package("PyGithub")`。
 
 ## 配置管理
 - API密钥：在 Dot. APP 中生成
@@ -205,6 +205,13 @@ npm run dev
 - 修改配置后需要在进程控制页面重启守护进程。
 
 # 故障排除
+
+## `install_package()` 构建失败（例如缺少 gcc / Failed building wheel）
+
+常见原因：
+
+1. 依赖只有源码包（sdist）、没有当前 Python 的预编译 wheel，需要本地编译。Docker 镜像已包含 `build-essential`；本地开发请自行安装编译器（如 `build-essential` / Xcode CLT）。
+2. 包本身与 Python 3.12 不兼容。典型例子：`install_package("Github")` 会拉取 `aiohttp==3.8.1`（无 cp312 wheel，且不支持 3.12）。若需要 GitHub API，请改用 `install_package("PyGithub")`。
 
 ## 在 macOS 下出现与 Cairo 相关报错
 尝试安装对应库
