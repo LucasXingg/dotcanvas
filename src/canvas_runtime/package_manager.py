@@ -151,9 +151,7 @@ def _pip_install_error(
     hint = (
         f"Failed to install {packages!r} into user_site for Python {py_tag}. "
         "Prefer packages that publish binary wheels for this Python version; "
-        "source builds need a compiler (Docker images include build-essential). "
-        "Note: the PyPI package 'Github' pins aiohttp==3.8.1 and is incompatible "
-        "with Python 3.12+ — use 'PyGithub' for the GitHub API instead."
+        "source builds need a compiler (Docker images include build-essential)."
     )
     if detail:
         return RuntimeError(f"{hint}\n\nPip output (tail):\n{detail}")
