@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextvars
 import importlib
 import json
 import logging
@@ -17,6 +18,12 @@ logger = logging.getLogger("dot.canvas")
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _DEF_USER_SITE = _PROJECT_ROOT / "user_site"
 _MANIFEST_FILENAME = "__dotcanvas_installed__.json"
+
+# Tracks packages installed during the current request/render cycle.
+_install_events: contextvars.ContextVar[list[str] | None] = contextvars.ContextVar(
+    "dotcanvas_install_events",
+    default=None,
+)
 
 
 def _resolve_user_site() -> Path:
@@ -70,6 +77,31 @@ def ensure_user_site() -> Path:
     return user_site
 
 
+def begin_install_tracking() -> None:
+    """Start collecting install events for the current request/render cycle."""
+    _install_events.set([])
+
+
+def consume_install_events() -> list[str]:
+    """Return and clear packages installed since the last begin/consume call."""
+    events = _install_events.get()
+    if not events:
+        _install_events.set(None)
+        return []
+    result = list(events)
+    _install_events.set(None)
+    return result
+
+
+def _record_install_event(packages: Iterable[str]) -> None:
+    events = _install_events.get()
+    if events is None:
+        return
+    for package in packages:
+        if package not in events:
+            events.append(package)
+
+
 def install_package(*packages: str) -> None:
     """Install one or more packages into the writable user site directory."""
     normalized = [pkg.strip() for pkg in packages if pkg and pkg.strip()]
@@ -90,6 +122,7 @@ def install_package(*packages: str) -> None:
     _run_pip_install(to_install, user_site)
     importlib.invalidate_caches()
     _save_manifest(manifest, installed.union(to_install))
+    _record_install_event(to_install)
 
 
 def _run_pip_install(packages: list[str], user_site: Path) -> None:
@@ -197,4 +230,10 @@ def install_packages(packages: Iterable[str]) -> None:
 # Ensure the user site is ready as soon as this module is imported.
 ensure_user_site()
 
-__all__ = ["install_package", "install_packages", "ensure_user_site"]
+__all__ = [
+    "install_package",
+    "install_packages",
+    "ensure_user_site",
+    "begin_install_tracking",
+    "consume_install_events",
+]
