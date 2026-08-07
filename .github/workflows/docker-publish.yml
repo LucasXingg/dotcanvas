@@ -3,7 +3,8 @@ name: Build and Push Docker Image
 on:
   push:
     branches:
-      - main  # Trigger only when main is updated (e.g., after a merge)
+      - main  # Stable image (:latest)
+      - dev   # Beta image (:beta)
 
 jobs:
   build:
@@ -33,14 +34,29 @@ jobs:
           REPO_LC="${GITHUB_REPOSITORY,,}"
           echo "repo=$REPO_LC" >> $GITHUB_OUTPUT
 
+      - name: Select image tags
+        id: tags
+        run: |
+          REPO="${{ steps.vars.outputs.repo }}"
+          SHA="${{ github.sha }}"
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            CHANNEL_TAG="ghcr.io/${REPO}:latest"
+          else
+            CHANNEL_TAG="ghcr.io/${REPO}:beta"
+          fi
+          {
+            echo "tags<<EOF"
+            echo "${CHANNEL_TAG}"
+            echo "ghcr.io/${REPO}:${SHA}"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
           platforms: linux/amd64,linux/arm64
-          tags: |
-            ghcr.io/${{ steps.vars.outputs.repo }}:latest
-            ghcr.io/${{ steps.vars.outputs.repo }}:${{ github.sha }}
+          tags: ${{ steps.tags.outputs.tags }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
