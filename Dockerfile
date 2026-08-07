@@ -8,9 +8,13 @@ RUN npm run build
 
 FROM python:3.12-slim AS base
 
-# Install system dependencies required for cairosvg and friends
+# Runtime libs for cairosvg; build tools so install_package() can compile
+# C-extension sdists when no compatible wheel exists for the current Python.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
+        build-essential \
+        gcc \
+        g++ \
         libcairo2 \
         libpango-1.0-0 \
         libpangocairo-1.0-0 \

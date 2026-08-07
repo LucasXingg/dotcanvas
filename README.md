@@ -15,11 +15,14 @@ DotCanvas 是一个轻量级的可视化Dot.编辑工具。
 
 ## Docker 部署
 
-我们已在 GitHub Container Registry 发布预构建镜像 `ghcr.io/lucasxingg/dotcanvas`，可以直接拉取并运行。
+我们已在 GitHub Container Registry 发布预构建镜像 `ghcr.io/lucasxingg/dotcanvas`，可以直接拉取并运行。`main` 分支推送发布 `:latest`，`dev` 分支推送发布 `:beta`。
 
 ```bash
-# 拉取镜像
+# 拉取稳定镜像
 docker pull ghcr.io/lucasxingg/dotcanvas:latest
+
+# 或拉取开发分支 beta 镜像
+# docker pull ghcr.io/lucasxingg/dotcanvas:beta
 
 # 运行容器（映射端口；建议同时挂载 configs 与 canvas，见下方「持久化」章节）
 docker run -d \
@@ -190,7 +193,7 @@ npm run dev
 - 对于视图构造函数，所有变量都需要包含在返回字典中，除非另行声明。
 - 实时预览只会在保存修改后（点击`保存更改`按钮或使用快捷键`command + s`）更新。
 - [视图文档](docs/views/index.md)
-- 如果需要使用额外的包，可以使用`install_package()`方法来安装一个或多个包，例如`install_package("numpy", "pandas")`
+- 如果需要使用额外的包，可以使用`install_package()`方法来安装一个或多个包，例如`install_package("numpy", "pandas")`。包会装到 `user_site/`；优先选择提供 Python 3.12 预编译 wheel 的包。Docker 镜像已包含编译工具，必要时可从源码构建 C 扩展。
 - 更完整的说明见文档目录：[界面说明](docs/ui-overview.md)、[视图脚本进阶](docs/view-scripts.md)（也可在 Web 控制台 **文档** 页浏览）。
 
 ## 配置管理
@@ -206,6 +209,10 @@ npm run dev
 - 修改配置后需要在进程控制页面重启守护进程。
 
 # 故障排除
+
+## `install_package()` 构建失败（例如缺少 gcc / Failed building wheel）
+
+常见原因：依赖只有源码包（sdist）、没有当前 Python 的预编译 wheel，需要本地编译；或包本身与 Python 3.12 不兼容。Docker 镜像已包含 `build-essential`；本地开发请自行安装编译器（如 `build-essential` / Xcode CLT）。
 
 ## 在 macOS 下出现与 Cairo 相关报错
 尝试安装对应库
